@@ -1,5 +1,6 @@
 {
   "grid_dim": "8,8",
+  "cell_size": 5,
   "mountain": 0.05,
   "green": 0.5,
   "yellow": 0.3,

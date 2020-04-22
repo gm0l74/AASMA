@@ -8,8 +8,11 @@
 #---------------------------------
 from aasma.env import env
 
+#---------------------------------
+# Execute
+#---------------------------------
 if __name__ == '__main__':
     try:
-        env.host()
+        env = env.Environment('./config.json').run()
     except:
         raise ValueError('Environment already exists')
