@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 #---------------------------------
-# AASMA
-# File : setup.py
+# AASMA - Agent
+# File : drn.py
 #
 # @ start date          22 04 2020
 # @ last update         22 04 2020
 #---------------------------------
-from setuptools import setup, find_packages
 
-setup(
-    name='aasma',
-    version='1.0',
-    packages=find_packages()
-)
+# deep Reinforcement Learning lets gooo

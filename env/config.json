@@ -1,0 +1,10 @@
+{
+  "grid_dim": "8,8",
+  "mountain": 0.05,
+  "green": 0.5,
+  "yellow": 0.3,
+  "red": 0.2,
+  "green-yellow": 5,
+  "yellow-red": 6,
+  "red-fire": 7,
+}
