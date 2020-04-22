@@ -92,6 +92,13 @@ class Environment:
         if total_prob != 1:
             raise ValueError(f'violated law of total probability')
 
+        # Check compatibility of screen dimensions and cell size
+        cell_size = int(self._config['cell_size'])
+
+        if not (self.__WINDOW_WIDTH % cell_size == 0 and \
+            self.__WINDOW_HEIGHT % cell_size == 0):
+            raise ValueError('\'cell_size\' and \'grid_dim\' are incompatible')
+
         return content
 
     def __config_check(self, field, value):
@@ -143,7 +150,7 @@ class Environment:
             float(self.__config['red'])
         ])
 
-        cell_size = self.__config['cell_size']
+        cell_size = int(self.__config['cell_size'])
 
         # Populate each cell with a heat signature and biome elements
         for x in range(0, self.__WINDOW_WIDTH, cell_size):
@@ -167,11 +174,8 @@ class Environment:
                     p=[p_mountain, 1 - p_mountain]
                 )
 
-                if has_mountain:
-                    # Load a mountain into this cell
-                    # TODO
-                    Mountain(HEATMAP_COLORS[color], x, y)
-                    mountain_sprite.rect = cell
+                # if has_mountain:
+                # TODO
 
                 pygame.draw.rect(
                     self.__screen, HEATMAP_COLORS[color],
