@@ -4,7 +4,7 @@
 # File : env.py
 #
 # @ start date          22 04 2020
-# @ last update         22 04 2020
+# @ last update         23 04 2020
 #---------------------------------
 
 #---------------------------------
@@ -16,6 +16,7 @@ import pygame
 import numpy as np
 
 from aasma.env.sprites.Mountain import Mountain
+from aasma.env.sprites.Fire import Fire
 
 #---------------------------------
 # Constants
@@ -40,18 +41,6 @@ HEATMAP_COLORS = {
     'yellow': (245, 200, 66),
     'red': (250, 0, 0)
 }
-
-#---------------------------------
-# Sprites
-#---------------------------------
-PATH = os.path.realpath(__file__)
-# Remove filename
-PATH = ROOT_PATH[:len(PATH) - 6]
-
-# Sprites themselves
-MOUNTAIN = pg.image.load(
-    os.path.join(PATH, './sprites/mountain.png')
-).convert_alpha()
 
 #---------------------------------
 # class Environment

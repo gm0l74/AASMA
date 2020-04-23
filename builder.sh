@@ -12,9 +12,9 @@ if [ -z "$1" ] ; then
 fi
 
 # Install requirements and set environment variables
-if [ -z ${IS_BUILT+x} ]; then
-  pip3 install -r requirements.txt --user
-fi
+#if [ -z ${IS_BUILT+x} ]; then
+#  pip3 install -r requirements.txt --user
+#fi
 
 # Create and deploy the aasma module locally
 python3 setup.py install --user
