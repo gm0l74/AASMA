@@ -50,7 +50,7 @@ class Environment:
         self.__config = self.__parse_config(config_file)
 
         # Build the grid world and spawn objects
-        self.__build() ; self.__spawn()
+        self.__build()
 
     def __parse_config(self, filename):
         if not re.search('.*\.json', filename):
@@ -65,8 +65,7 @@ class Environment:
         for field in CONFIG_FIELDS:
             if field not in content:
                 raise ValueError(f'Missing config field \'{field}\'')
-            elif (e := self.__config_check(field, content[field])):
-                print(f'\033[31m{e}\033[0m')
+            elif not (e := self.__config_check(field, content[field])):
                 raise ValueError(f'invalid config value for \'{field}\'')
 
         # Obtain the game window dimensions
@@ -79,7 +78,9 @@ class Environment:
             float(content['yellow']) + float(content['red'])
 
         if total_prob != 1:
-            raise ValueError(f'violated law of total probability')
+            raise ValueError(
+                f'Violated law of total probability. Change config file'
+            )
 
         # Check compatibility of screen dimensions and cell size
         cell_size = int(self._config['cell_size'])
