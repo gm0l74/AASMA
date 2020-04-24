@@ -1,7 +1,7 @@
 {
   "grid_dim": "600,600",
   "cell_size": 60,
-  "mountain": 0.05,
+  "mountain": 0.005,
   "green": 0.65,
   "yellow": 0.3,
   "red": 0.05,

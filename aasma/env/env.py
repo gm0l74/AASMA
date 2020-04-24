@@ -4,7 +4,7 @@
 # File : env.py
 #
 # @ start date          22 04 2020
-# @ last update         24 04 2020
+# @ last update         25 04 2020
 #---------------------------------
 
 #---------------------------------
@@ -152,7 +152,7 @@ class Environment:
         for x in range(0, self.__WINDOW_WIDTH, cell_size):
             for y in range(0, self.__WINDOW_HEIGHT, cell_size):
                 color = np.random.choice(
-                    list(HEATMAP_COLORS.keys()), 1,
+                    ('green', 'yellow', 'red'), 1,
                     p=p_distribution
                 )[0]
 
@@ -172,7 +172,7 @@ class Environment:
 
                 if has_mountain:
                     # TODO
-                    print("FUCK ME")
+                    print("Mountain")
 
                 pygame.draw.rect(
                     self.__screen, HEATMAP_COLORS[color],
