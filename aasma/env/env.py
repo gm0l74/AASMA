@@ -81,7 +81,7 @@ class Environment:
             float(content['yellow']) + float(content['red'])
 
         if round(total_prob, 2) != 1:
-            print(f"Probability deducted: {total_prob}")
+            print("Probability deducted: {}".format(total_prob))
             raise ValueError(
                 'Violated law of total probability. Change config file'
             )
