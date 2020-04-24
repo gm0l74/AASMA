@@ -1,4 +1,26 @@
 # AASMA
-Creating a sentient drone
-Please commit ability to love until the 30th of march
-I have a bug in the bate-papo
+## Developing a sentient drone
+
+Ability is done until the 30th of march! Change my mind!
+
+## Installation (Makefile)
+To install aasma, run 'make'.
+To uninstall it, run 'make uninstall'.
+You can uninstall and re-install with 'make reset'.
+
+Stop pip installing requirements and adding the aasma alias,
+by setting up the environment variable: *IS_BUILT*.
+Just do:
+```console
+export IS_BUILT=TRUE
+```
+
+To delete the environment variable:
+```console
+unset IS_BUILT
+```
+
+For example, when initializing a new docker container, one should do:
+```console
+make reset
+```
