@@ -1,0 +1,6 @@
+README.md
+setup.py
+aasma.egg-info/PKG-INFO
+aasma.egg-info/SOURCES.txt
+aasma.egg-info/dependency_links.txt
+aasma.egg-info/top_level.txt
