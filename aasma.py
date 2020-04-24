@@ -27,7 +27,7 @@ import texttable as tt
 # Path of aasma's root
 ROOT_PATH = os.path.realpath(__file__)
 # Remove filename
-ROOT_PATH = ROOT_PATH[:len(ROOT_PATH) - 10]
+ROOT_PATH = ROOT_PATH[:len(ROOT_PATH) - 9]
 
 #---------------------------------
 # class Command [Abstract]

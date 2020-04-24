@@ -20,6 +20,9 @@ fi
 python3 setup.py install --user
 chmod +x aasma.sh aasma.py
 
+# Give executable priveleges to all python scripts
+find aasma/ -name '*.py' -type f ! -name __init__.py -exec chmod +x {} \;
+
 # Insert the alias
 if [ -z ${IS_BUILT+x} ]; then
   if [ "$1" = "WIN32" ]; then

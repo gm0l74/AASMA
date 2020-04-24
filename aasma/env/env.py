@@ -4,7 +4,7 @@
 # File : env.py
 #
 # @ start date          22 04 2020
-# @ last update         23 04 2020
+# @ last update         24 04 2020
 #---------------------------------
 
 #---------------------------------
@@ -38,7 +38,7 @@ CONFIG_FIELDS = {
 
 HEATMAP_COLORS = {
     'green': (0, 250, 0),
-    'yellow': (245, 200, 66),
+    'yellow': (255, 204, 0),
     'red': (250, 0, 0)
 }
 
@@ -57,16 +57,17 @@ class Environment:
             raise ValueError('Config file must be a .json')
 
         try:
-            content = json.load(filename)
+            with open(filename, 'r') as config_file:
+                content = json.load(config_file)
         except:
-            raise ValueError('File couldn\'t be found')
+            raise ValueError('Config file IO failure')
 
         # Error handle the json content
         for field in CONFIG_FIELDS:
             if field not in content:
                 raise ValueError(f'Missing config field \'{field}\'')
-            elif not (e := self.__config_check(field, content[field])):
-                raise ValueError(f'invalid config value for \'{field}\'')
+            elif not self.__config_check(field, content[field]):
+                raise ValueError(f'Invalid config value for \'{field}\'')
 
         # Obtain the game window dimensions
         dimensions = content['grid_dim'].split(',')
@@ -77,13 +78,14 @@ class Environment:
         total_prob = float(content['green']) + \
             float(content['yellow']) + float(content['red'])
 
-        if total_prob != 1:
+        if round(total_prob, 2) != 1:
+            print(f"Probability deducted: {total_prob}")
             raise ValueError(
                 f'Violated law of total probability. Change config file'
             )
 
         # Check compatibility of screen dimensions and cell size
-        cell_size = int(self._config['cell_size'])
+        cell_size = int(content['cell_size'])
 
         if not (self.__WINDOW_WIDTH % cell_size == 0 and \
             self.__WINDOW_HEIGHT % cell_size == 0):
@@ -106,16 +108,18 @@ class Environment:
         elif data_type == 'dim':
             try:
                 w, h = value.split(',')
-                w, h = int(w), int(h)
+                return int(w) > 0 and int(h) > 0
             except:
-                raise ValueError('That dimension is unsupported')
+                return False
         else:
             raise ValueError(f'Unknown data_type of \'{field}\'')
 
     def __build(self):
         # Start the environment engine
         pygame.init()
-        self.__screen = pygame.display.set_mode(())
+        self.__screen = pygame.display.set_mode(
+            (self.__WINDOW_WIDTH, self.__WINDOW_HEIGHT)
+        )
 
         # Draw the environment itself
         self.__draw_and_spawn()
@@ -146,13 +150,13 @@ class Environment:
         for x in range(0, self.__WINDOW_WIDTH, cell_size):
             for y in range(0, self.__WINDOW_HEIGHT, cell_size):
                 color = np.random.choice(
-                    HEATMAP_COLORS.keys(), 1,
+                    list(HEATMAP_COLORS.keys()), 1,
                     p=p_distribution
-                )
+                )[0]
 
                 cell = pygame.Rect(
-                    x * block_size + 1, y * block_size + 1,
-                    block_size - 1, block_size - 1
+                    x + 2, y + 2,
+                    cell_size - 2, cell_size - 2
                 )
 
                 # Just load mountains according to the probability
@@ -160,7 +164,7 @@ class Environment:
                 p_mountain = float(self.__config['mountain'])
 
                 has_mountain = np.random.choice(
-                    [True False], 1,
+                    [True, False], 1,
                     p=[p_mountain, 1 - p_mountain]
                 )
 
@@ -171,6 +175,8 @@ class Environment:
                     self.__screen, HEATMAP_COLORS[color],
                     cell, 0 # 0 = fill cell
                 )
+
+            pygame.display.flip()
 
     def run(self):
         EXECUTE = True
@@ -187,4 +193,4 @@ class Environment:
             # TODO
 
             # Tick the clock with 1Hz (1 frame per second)
-            clock.tick(1)
+            self.__clock.tick(1)
