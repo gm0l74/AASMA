@@ -88,7 +88,8 @@ class EnvironmentCommand(Command):
             raise ValueError('Incorrect number of args')
 
         # Call another python script
-        os.system(f'{ROOT_PATH}/aasma/env/run.py')
+        _path = '"' + ROOT_PATH + '/aasma/env/run.py'+ '"'
+        os.system(_path)
 
 #---------------------------------
 # class AgentCommand
@@ -108,7 +109,8 @@ class AgentCommand(Command):
             raise ValueError('Incorrect number of args')
 
         # Call another python script
-        os.system(f'{ROOT_PATH}/aasma/agent/run.py')
+        _path = '"' + ROOT_PATH + '/aasma/agent/run.py'+ '"'
+        os.system(_path)
 
 #---------------------------------
 # function process_command
@@ -141,7 +143,7 @@ def process_command():
         if selected == 'help':
             commands['help'].execute(commands)
         else:
-            print(f'ARGS: {args[2:]}')
+            print('ARGS: {}'.format(args[2:]))
             commands[selected].execute(args[2:])
     except Exception as exception:
         print("\033[31mError in '{}': {}\033[0m".format(

@@ -65,9 +65,11 @@ class Environment:
         # Error handle the json content
         for field in CONFIG_FIELDS:
             if field not in content:
-                raise ValueError(f'Missing config field \'{field}\'')
+                raise ValueError('Missing config field \'{}\''.format(field))
             elif not self.__config_check(field, content[field]):
-                raise ValueError(f'Invalid config value for \'{field}\'')
+                raise ValueError(
+                    'Invalid config value for \'{}\''.format(field)
+                )
 
         # Obtain the game window dimensions
         dimensions = content['grid_dim'].split(',')
@@ -81,7 +83,7 @@ class Environment:
         if round(total_prob, 2) != 1:
             print(f"Probability deducted: {total_prob}")
             raise ValueError(
-                f'Violated law of total probability. Change config file'
+                'Violated law of total probability. Change config file'
             )
 
         # Check compatibility of screen dimensions and cell size
@@ -112,7 +114,7 @@ class Environment:
             except:
                 return False
         else:
-            raise ValueError(f'Unknown data_type of \'{field}\'')
+            raise ValueError('Unknown data_type of \'{}\''.format(field))
 
     def __build(self):
         # Start the environment engine
