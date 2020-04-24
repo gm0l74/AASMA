@@ -4,7 +4,7 @@
 # File : builer.sh
 #
 # @ start date          22 04 2020
-# @ last update         22 04 2020
+# @ last update         24 04 2020
 #---------------------------------
 # Error handle these arguments
 if [ -z "$1" ] ; then
@@ -12,9 +12,9 @@ if [ -z "$1" ] ; then
 fi
 
 # Install requirements and set environment variables
-#if [ -z ${IS_BUILT+x} ]; then
-#  pip3 install -r requirements.txt --user
-#fi
+if [ -z ${IS_BUILT+x} ]; then
+ pip3 install -r requirements.txt --user
+fi
 
 # Create and deploy the aasma module locally
 python3 setup.py install --user

@@ -1,7 +1,7 @@
 # AASMA
 ## Developing a sentient drone
 
-Ability is done until the 30th of march! Change my mind!
+Ability to love is done until the 30th of march! Change my mind!
 
 ## Installation (Makefile)
 To install aasma, run 'make'.
@@ -23,4 +23,16 @@ unset IS_BUILT
 For example, when initializing a new docker container, one should do:
 ```console
 make reset
+```
+
+## Environment
+
+To instantiate an environment just do:
+```console
+aasma environment
+```
+
+If aasma doesn't exist, make sure to source your .bashrc.
+```console
+source ~/.bashrc
 ```

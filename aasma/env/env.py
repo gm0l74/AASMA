@@ -168,8 +168,9 @@ class Environment:
                     p=[p_mountain, 1 - p_mountain]
                 )
 
-                # if has_mountain:
-                # TODO
+                if has_mountain:
+                    # TODO
+                    print("FUCK ME")
 
                 pygame.draw.rect(
                     self.__screen, HEATMAP_COLORS[color],
