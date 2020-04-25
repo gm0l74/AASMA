@@ -36,17 +36,19 @@ CONFIG_FIELDS = {
     # Evolution
     'green-yellow': 'ts',
     'yellow-red': 'ts',
-    'red-green': 'ts'
+    'red-fire': 'ts',
+    'fire-green': 'ts'
 }
 
 HEATMAP_COLORS = {
     'green': (0, 250, 0),
     'yellow': (255, 204, 0),
     'red': (250, 0, 0),
-    'mountain': (153, 102, 51) # brown
+    'mountain': (153, 102, 51), # brown
+    'fire': (0, 0, 0)
 }
 
-HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red')
+HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire')
 
 #---------------------------------
 # Sprites
@@ -236,7 +238,7 @@ class Environment:
                     # Next heatmap signature to be displayed
                     if color != 'mountain':
                         i = HEATMAP_TRANSITION_GUIDE.index(color)
-                        next_hm_signature = HEATMAP_TRANSITION_GUIDE[(i + 1) % 3]
+                        next_hm_signature = HEATMAP_TRANSITION_GUIDE[(i + 1) % 4]
 
                         if ts >= self.__config[color + '-' + next_hm_signature]:
                             self.__matrix_repr[x // cell_size][y // cell_size][0] = next_hm_signature
@@ -251,6 +253,11 @@ class Environment:
                         )
 
                         pygame.draw.rect(self.__screen, HEATMAP_COLORS[self.__matrix_repr[x // cell_size][y // cell_size][0]], cell, 0)
+
+                        if self.__matrix_repr[x // cell_size][y // cell_size][0] == 'fire':
+                            fire = pygame.image.load(FIRE_SPRITE_FILEPATH)
+                            fire = pygame.transform.scale(fire, (cell_size - 2, cell_size - 2))
+                            self.__screen.blit(fire, (x + 2, y + 2))
 
             pygame.display.flip()
             # Handle external events
