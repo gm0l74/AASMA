@@ -238,7 +238,7 @@ class Environment:
                     # Next heatmap signature to be displayed
                     if color != 'mountain':
                         i = HEATMAP_TRANSITION_GUIDE.index(color)
-                        next_hm_signature = HEATMAP_TRANSITION_GUIDE[(i + 1) % 4]
+                        next_hm_signature = HEATMAP_TRANSITION_GUIDE[(i + 1) % len(HEATMAP_TRANSITION_GUIDE)]
 
                         if ts >= self.__config[color + '-' + next_hm_signature]:
                             self.__matrix_repr[x // cell_size][y // cell_size][0] = next_hm_signature
@@ -254,6 +254,7 @@ class Environment:
 
                         pygame.draw.rect(self.__screen, HEATMAP_COLORS[self.__matrix_repr[x // cell_size][y // cell_size][0]], cell, 0)
 
+                        #Adds a fire sprite to the fire blocks
                         if self.__matrix_repr[x // cell_size][y // cell_size][0] == 'fire':
                             fire = pygame.image.load(FIRE_SPRITE_FILEPATH)
                             fire = pygame.transform.scale(fire, (cell_size - 2, cell_size - 2))
