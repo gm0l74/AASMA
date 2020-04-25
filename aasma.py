@@ -4,7 +4,7 @@
 # File : aasma.py
 #
 # @ start date          22 04 2020
-# @ last update         22 04 2020
+# @ last update         25 04 2020
 #---------------------------------
 
 #---------------------------------
@@ -18,7 +18,7 @@
 #---------------------------------
 # Imports
 #---------------------------------
-import sys, os
+import sys, os, subprocess
 import texttable as tt
 
 #---------------------------------
@@ -88,8 +88,8 @@ class EnvironmentCommand(Command):
             raise ValueError('Incorrect number of args')
 
         # Call another python script
-        _path = '"' + ROOT_PATH + '/aasma/env/run.py'+ '"'
-        os.system(_path)
+        _path = ROOT_PATH + '/aasma/env/run.py'
+        subprocess.call("python3 \"{}\"".format(_path), shell=True)
 
 #---------------------------------
 # class AgentCommand
@@ -109,8 +109,8 @@ class AgentCommand(Command):
             raise ValueError('Incorrect number of args')
 
         # Call another python script
-        _path = '"' + ROOT_PATH + '/aasma/agent/run.py'+ '"'
-        os.system(_path)
+        _path = ROOT_PATH + '/aasma/agent/run.py'
+        subprocess.call("python3 \"{}\"".format(_path), shell=True)
 
 #---------------------------------
 # function process_command
