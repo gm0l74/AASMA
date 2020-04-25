@@ -6,17 +6,20 @@
 # @ start date          22 04 2020
 # @ last update         25 04 2020
 #---------------------------------
+# TODO : Add character behaviour
+# TODO: Spawn a new window with the current time step and other metrics
 
 #---------------------------------
 # Imports
 #---------------------------------
 import os
 import re, json
-import pygame
 import numpy as np
 
-from aasma.env.sprites.Mountain import Mountain
-from aasma.env.sprites.Fire import Fire
+import pygame
+import tkinter as tk
+
+from aasma.env.about_window import Application
 
 #---------------------------------
 # Constants
@@ -33,14 +36,30 @@ CONFIG_FIELDS = {
     # Evolution
     'green-yellow': 'ts',
     'yellow-red': 'ts',
-    'red-fire': 'ts'
+    'red-green': 'ts'
 }
 
 HEATMAP_COLORS = {
     'green': (0, 250, 0),
     'yellow': (255, 204, 0),
-    'red': (250, 0, 0)
+    'red': (250, 0, 0),
+    'mountain': (153, 102, 51) # brown
 }
+
+HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red')
+
+#---------------------------------
+# Sprites
+#---------------------------------
+PATH = os.path.realpath(__file__)
+# Remove filename
+PATH = PATH[:len(PATH) - 6]
+
+# Sprites themselves
+MOUNTAIN_SPRITE_FILEPATH = os.path.join(PATH, '../../mountain.png')
+FIRE_SPRITE_FILEPATH = os.path.join(PATH, '../../fire.png')
+
+#CHARACTER_SPRITE_FILEPATH = os.path.join(PATH, '../../drone.png')
 
 #---------------------------------
 # class Environment
@@ -48,6 +67,8 @@ HEATMAP_COLORS = {
 class Environment:
     def __init__(self, config_file):
         self.__config = self.__parse_config(config_file)
+
+        self.__matrix_repr = []
 
         # Build the grid world and spawn objects
         self.__build()
@@ -78,7 +99,8 @@ class Environment:
 
         # Also check the correctness of the law of total probability
         total_prob = float(content['green']) + \
-            float(content['yellow']) + float(content['red'])
+            float(content['yellow']) + float(content['red']) + \
+            float(content['mountain'])
 
         if round(total_prob, 2) != 1:
             print("Probability deducted: {}".format(total_prob))
@@ -119,6 +141,7 @@ class Environment:
     def __build(self):
         # Start the environment engine
         pygame.init()
+        pygame.display.set_caption('AASMA Environment')
         self.__screen = pygame.display.set_mode(
             (self.__WINDOW_WIDTH, self.__WINDOW_HEIGHT)
         )
@@ -143,16 +166,17 @@ class Environment:
         p_distribution = np.array([
             float(self.__config['green']),
             float(self.__config['yellow']),
-            float(self.__config['red'])
+            float(self.__config['red']),
+            float(self.__config['mountain'])
         ])
 
-        cell_size = int(self.__config['cell_size'])
-
         # Populate each cell with a heat signature and biome elements
+        cell_size = int(self.__config['cell_size'])
         for x in range(0, self.__WINDOW_WIDTH, cell_size):
+            row_repr = []
             for y in range(0, self.__WINDOW_HEIGHT, cell_size):
                 color = np.random.choice(
-                    ('green', 'yellow', 'red'), 1,
+                    ('green', 'yellow', 'red', 'mountain'), 1,
                     p=p_distribution
                 )[0]
 
@@ -165,21 +189,32 @@ class Environment:
                 # given in config.json
                 p_mountain = float(self.__config['mountain'])
 
-                has_mountain = np.random.choice(
-                    [True, False], 1,
-                    p=[p_mountain, 1 - p_mountain]
-                )
-
-                if has_mountain:
-                    # TODO
-                    print("Mountain")
-
                 pygame.draw.rect(
                     self.__screen, HEATMAP_COLORS[color],
                     cell, 0 # 0 = fill cell
                 )
 
-            pygame.display.flip()
+                # Add cell to environment matrix representation
+                # cell = [color, time step]
+                row_repr.append([color, 0])
+
+                if color == 'mountain':
+                    mountain = pygame.image.load(
+                        MOUNTAIN_SPRITE_FILEPATH
+                    )
+                    mountain = pygame.transform.scale(
+                        mountain, (cell_size - 2, cell_size - 2)
+                    )
+                    self.__screen.blit(mountain, (x + 2, y + 2))
+
+            # Add row to the matrix representation of the environment
+            self.__matrix_repr.append(row_repr)
+
+        pygame.display.flip()
+
+        root = tk.Tk()
+        app = Application(master=root)
+        app.mainloop()
 
     def run(self):
         EXECUTE = True
@@ -189,11 +224,37 @@ class Environment:
                 if event.type == pygame.QUIT:
                         EXECUTE = False
 
+            # Run an update on the env grid
+            # (without external interference)
+            cell_size = int(self.__config['cell_size'])
+            for x in range(0, self.__WINDOW_WIDTH, cell_size):
+                for y in range(0, self.__WINDOW_HEIGHT, cell_size):
+                    # Update matrix representation of the environment
+                    cell = self.__matrix_repr[x // cell_size][y // cell_size]
+                    color, ts = cell
+
+                    # Next heatmap signature to be displayed
+                    if color != 'mountain':
+                        i = HEATMAP_TRANSITION_GUIDE.index(color)
+                        next_hm_signature = HEATMAP_TRANSITION_GUIDE[(i + 1) % 3]
+
+                        if ts >= self.__config[color + '-' + next_hm_signature]:
+                            self.__matrix_repr[x // cell_size][y // cell_size][0] = next_hm_signature
+                            self.__matrix_repr[x // cell_size][y // cell_size][1] = 0
+                        else:
+                            self.__matrix_repr[x // cell_size][y // cell_size][1] += 1
+
+                        # Update pygame environment
+                        cell = pygame.Rect(
+                            x + 2, y + 2,
+                            cell_size - 2, cell_size - 2
+                        )
+
+                        pygame.draw.rect(self.__screen, HEATMAP_COLORS[self.__matrix_repr[x // cell_size][y // cell_size][0]], cell, 0)
+
+            pygame.display.flip()
             # Handle external events
             # TODO
 
-            # Handle changes in environment
-            # TODO
-
-            # Tick the clock with 1Hz (1 frame per second)
+            # Tick the clock with 15Hz (15 frame per second)
             self.__clock.tick(1)
