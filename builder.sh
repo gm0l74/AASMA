@@ -4,7 +4,7 @@
 # File : builer.sh
 #
 # @ start date          22 04 2020
-# @ last update         25 04 2020
+# @ last update         27 04 2020
 #---------------------------------
 # Error handle these arguments
 if [ -z "$1" ] ; then
@@ -30,15 +30,7 @@ fi
 # Insert the alias
 if [ -z ${IS_BUILT+x} ]; then
   if [ "$1" = "WIN32" ]; then
-    # TODO
-    doskey aasma=$(pwd)/aasma.sh
-    #rem %SendKeys% to send keys to the keyboard buffer
-    #set SendKeys=CSript // nologo
-
-    #rem Send the keys with the DOSKEY macro name:
-    #%SendKeys% "mvn clean install {ENTER}"
-
-    #WshShell.SendKeys(WScript.CreateObject("WScript.Shell").Arguments(0))
+    echo -e "\033[0;33mWIN32 alias assignment is unavailable\033[0m"
   else
     echo "alias aasma=\"bash $(pwd)/aasma.sh\"" >> ${HOME}/.bashrc
   	source ${HOME}/.bashrc
