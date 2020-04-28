@@ -4,20 +4,26 @@
 # File : env.py
 #
 # @ start date          22 04 2020
-# @ last update         25 04 2020
+# @ last update         27 04 2020
 #---------------------------------
-# TODO : Add character behaviour
-# TODO: Spawn a new window with the current time step and other metrics
+
+# With this, the environment will be finished:
+# TODO Refactor
+# TODO Add character behaviour functions
+# TODO FIX POSSIBLE UNREACHABLE ZONES
+# TODO Add randomness to TS Evolution of heat signatures
+# TODO Draw sprites: mountain and fire
+# This is the goal for day 02/05
 
 #---------------------------------
 # Imports
 #---------------------------------
 import os
 import re, json
-import numpy as np
+from random import randrange
 
+import numpy as np
 import pygame
-import tkinter as tk
 
 from aasma.env.about_window import Application
 
@@ -61,7 +67,7 @@ PATH = PATH[:len(PATH) - 6]
 MOUNTAIN_SPRITE_FILEPATH = os.path.join(PATH, '../../mountain.png')
 FIRE_SPRITE_FILEPATH = os.path.join(PATH, '../../fire.png')
 
-#CHARACTER_SPRITE_FILEPATH = os.path.join(PATH, '../../drone.png')
+CHARACTER_SPRITE_FILEPATH = os.path.join(PATH, '../../drone.png')
 
 #---------------------------------
 # class Environment
@@ -149,12 +155,14 @@ class Environment:
         )
 
         # Draw the environment itself
-        self.__draw_and_spawn()
+        self.__draw_and_spawn_environment()
+        self.__draw_and_spawn_character()
+        pygame.display.flip()
 
         # Start the environment engine clock
         self.__clock = pygame.time.Clock()
 
-    def __draw_and_spawn(self):
+    def __draw_and_spawn_environment(self):
         # Fill the window
         # This will eventually be (after heatmap placement)
         # the lines which separate cells (thickness=1)
@@ -198,7 +206,7 @@ class Environment:
 
                 # Add cell to environment matrix representation
                 # cell = [color, time step]
-                row_repr.append([color, 0])
+                row_repr.append([color, 0, False])
 
                 if color == 'mountain':
                     mountain = pygame.image.load(
@@ -212,11 +220,29 @@ class Environment:
             # Add row to the matrix representation of the environment
             self.__matrix_repr.append(row_repr)
 
-        pygame.display.flip()
+    def __draw_and_spawn_character(self):
+        # Spawn a character at a random location
+        # (without collision with other eventual characters and biome elements)
+        cell_size = int(self.__config['cell_size'])
 
-        root = tk.Tk()
-        app = Application(master=root)
-        app.mainloop()
+        character = pygame.image.load(CHARACTER_SPRITE_FILEPATH)
+        character = pygame.transform.scale(
+            character, (cell_size - 2, cell_size - 2)
+        )
+
+        do_spawn = True
+        while do_spawn:
+            x_index = randrange(0, self.__WINDOW_WIDTH // cell_size)
+            x = x_index * cell_size
+            y_index = randrange(0, self.__WINDOW_HEIGHT // cell_size)
+            y = y_index * cell_size
+
+            env_position_repr = self.__matrix_repr[x_index][y_index]
+            if env_position_repr[0] != 'mountain':
+                do_spawn = False
+                self.__matrix_repr[x_index][y_index][2] = True
+
+        self.__screen.blit(character, (x + 2, y + 2))
 
     def run(self):
         EXECUTE = True
@@ -233,7 +259,7 @@ class Environment:
                 for y in range(0, self.__WINDOW_HEIGHT, cell_size):
                     # Update matrix representation of the environment
                     cell = self.__matrix_repr[x // cell_size][y // cell_size]
-                    color, ts = cell
+                    color, ts, has_agent = cell
 
                     # Next heatmap signature to be displayed
                     if color != 'mountain':
@@ -260,9 +286,19 @@ class Environment:
                             fire = pygame.transform.scale(fire, (cell_size - 2, cell_size - 2))
                             self.__screen.blit(fire, (x + 2, y + 2))
 
+                    if has_agent:
+                        # TODO
+                        # KEYS ARE NOT GOOD FOR MULTIPLE AGENTS
+                        # WHAT TO USE?
+
+                        character = pygame.image.load(CHARACTER_SPRITE_FILEPATH)
+                        character = pygame.transform.scale(
+                            character, (cell_size - 2, cell_size - 2)
+                        )
+
+                        self.__screen.blit(character, (x + 2, y + 2))
+
             pygame.display.flip()
-            # Handle external events
-            # TODO
 
             # Tick the clock with 15Hz (15 frame per second)
-            self.__clock.tick(1)
+            self.__clock.tick(15)
