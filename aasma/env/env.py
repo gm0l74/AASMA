@@ -15,6 +15,7 @@
 import os
 import re, json
 import numpy as np
+import random
 
 import pygame
 import tkinter as tk
@@ -126,9 +127,15 @@ class Environment:
                 return 0 <= float(value) <= 1
             except:
                 return False
-        elif data_type in ('ts', 'int'):
+        elif data_type == 'int':
             try:
                 return int(value) > 1
+            except:
+                return False
+        elif data_type == 'ts':
+            try:
+                splitted = value.split("-")
+                return int(splitted[0]) > 1 and int(splitted[1])
             except:
                 return False
         elif data_type == 'dim':
@@ -239,8 +246,15 @@ class Environment:
                     if color != 'mountain':
                         i = HEATMAP_TRANSITION_GUIDE.index(color)
                         next_hm_signature = HEATMAP_TRANSITION_GUIDE[(i + 1) % len(HEATMAP_TRANSITION_GUIDE)]
+                        # TODO
 
-                        if ts >= self.__config[color + '-' + next_hm_signature]:
+                        #Now the ts come in intervals and we random to choose a value
+                        splitted_config = self.__config[color + '-' + next_hm_signature].split("-")
+                        left_limit = int(splitted_config[0])
+                        right_limit = int(splitted_config[1])
+                        ts_change_color = random.randint(left_limit, right_limit)
+
+                        if ts >= ts_change_color:
                             self.__matrix_repr[x // cell_size][y // cell_size][0] = next_hm_signature
                             self.__matrix_repr[x // cell_size][y // cell_size][1] = 0
                         else:
