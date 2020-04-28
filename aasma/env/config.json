@@ -5,8 +5,8 @@
   "green": 0.6,
   "yellow": 0.3,
   "red": 0.05,
-  "green-yellow": "5,15",
-  "yellow-red": "15,20",
-  "red-fire": "20,30",
-  "fire-green": "30,40"
+  "green-yellow": "75,225",
+  "yellow-red": "225,300",
+  "red-fire": "300,450",
+  "fire-green": "450,600"
 }

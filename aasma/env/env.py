@@ -311,6 +311,8 @@ class Environment:
         self.__screen.blit(character, (x + 2, y + 2))
 
     def __update_heatmap(self):
+        # TODO
+        # Reset when agent enters the cell
         cell_size = self.__config['cell_size']
         # Load the fire sprite once throughout this update
         fire = pygame.transform.scale(
