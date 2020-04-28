@@ -39,7 +39,6 @@ source ~/.bashrc
 
 ## TODOS
 To finish up the environment:
-* Add randomness to evolution timesteps
 * Refactor update function code
 * Add agent controls
 * Create interface infrastructure with external scripts
