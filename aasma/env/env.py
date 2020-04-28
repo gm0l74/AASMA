@@ -4,66 +4,65 @@
 # File : env.py
 #
 # @ start date          22 04 2020
-# @ last update         27 04 2020
+# @ last update         28 04 2020
 #---------------------------------
-
-# With this, the environment will be finished:
-# TODO Refactor
-# TODO Add character behaviour functions
-# TODO FIX POSSIBLE UNREACHABLE ZONES
-# TODO Add randomness to TS Evolution of heat signatures
-# TODO Draw sprites: mountain and fire
-# This is the goal for day 02/05
 
 #---------------------------------
 # Imports
 #---------------------------------
 import os
 import re, json
-from random import randrange
+import hashlib
+from datetime import datetime
+from random import randint
 
 import numpy as np
 import pygame
 
-from aasma.env.about_window import Application
+#---------------------------------
+# PWD
+#---------------------------------
+PATH = os.path.realpath(__file__)
+# Remove filename
+PATH = PATH[:len(PATH) - 6]
 
 #---------------------------------
 # Constants
 #---------------------------------
 CONFIG_FIELDS = {
     # Dimensionality
-    'grid_dim': 'dim',
+    'grid_dim': 'int_tuple', # int_tuple is (int > 0, int > 0)
     'cell_size': 'int',
     # Spawn
-    'mountain': 'prob',
+    'mountain': 'prob', # prob belongs to [0, 1]
     'green': 'prob',
     'yellow': 'prob',
     'red': 'prob',
     # Evolution
-    'green-yellow': 'ts',
-    'yellow-red': 'ts',
-    'red-fire': 'ts',
-    'fire-green': 'ts'
+    'green-yellow': 'int_tuple',
+    'yellow-red': 'int_tuple',
+    'red-fire': 'int_tuple',
+    'fire-green': 'int_tuple'
 }
 
 HEATMAP_COLORS = {
     'green': (0, 250, 0),
     'yellow': (255, 204, 0),
     'red': (250, 0, 0),
-    'mountain': (153, 102, 51), # brown
-    'fire': (0, 0, 0)
+    'fire': (0, 0, 0),
+    # Biome locked cell color
+    'mountain': (153, 102, 51) # brown
 }
 
 HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire')
 
+# Environment engine configuration
+FPS = 15 # frames per second (in Hz)
+
 #---------------------------------
 # Sprites
 #---------------------------------
-PATH = os.path.realpath(__file__)
-# Remove filename
-PATH = PATH[:len(PATH) - 6]
-
-# Sprites themselves
+# Filepaths to the sprites themselves
 MOUNTAIN_SPRITE_FILEPATH = os.path.join(PATH, '../../mountain.png')
 FIRE_SPRITE_FILEPATH = os.path.join(PATH, '../../fire.png')
 
@@ -74,16 +73,20 @@ CHARACTER_SPRITE_FILEPATH = os.path.join(PATH, '../../drone.png')
 #---------------------------------
 class Environment:
     def __init__(self, config_file):
+        # Load configuration for an environment
         self.__config = self.__parse_config(config_file)
 
-        self.__matrix_repr = []
+        self.__screen = None
+        self.__env_mtrx_repr = []
+        self.__characters = []
 
-        # Build the grid world and spawn objects
+        # Build the environment
+        # (heatmap gridworld with heat signatures and biome elements)
         self.__build()
 
     def __parse_config(self, filename):
         if not re.search('.*\.json', filename):
-            raise ValueError('Config file must be a .json')
+            raise ValueError('Config must be a .json file')
 
         try:
             with open(filename, 'r') as config_file:
@@ -91,64 +94,80 @@ class Environment:
         except:
             raise ValueError('Config file IO failure')
 
-        # Error handle the json content
+        # Error handle the json content and change datatypes inplace
         for field in CONFIG_FIELDS:
             if field not in content:
-                raise ValueError('Missing config field \'{}\''.format(field))
-            elif not self.__config_check(field, content[field]):
+                raise ValueError(
+                    'Missing config field \'{}\''.format(field)
+                )
+
+            # Error check tthe field
+            is_valid, f_transform = self.__config_check(
+                field, content[field])
+            if not is_valid:
                 raise ValueError(
                     'Invalid config value for \'{}\''.format(field)
                 )
+            else:
+                content[field] = f_transform(content[field])
 
-        # Obtain the game window dimensions
-        dimensions = content['grid_dim'].split(',')
-        self.__WINDOW_WIDTH = int(dimensions[0])
-        self.__WINDOW_HEIGHT = int(dimensions[1])
+        # Isolate the window dimensions
+        self.__WINDOW_WIDTH, self.__WINDOW_HEIGHT = content['grid_dim']
 
-        # Also check the correctness of the law of total probability
-        total_prob = float(content['green']) + \
-            float(content['yellow']) + float(content['red']) + \
-            float(content['mountain'])
+        # Check compatibility of window dimensions and cell_size
+        cell_size = content['cell_size']
 
-        if round(total_prob, 2) != 1:
-            print("Probability deducted: {}".format(total_prob))
+        if not (
+            self.__WINDOW_WIDTH % cell_size == 0 and \
+            self.__WINDOW_HEIGHT % cell_size == 0
+        ):
             raise ValueError(
-                'Violated law of total probability. Change config file'
+                '\'cell_size\' and \'grid_dim\' are incompatible'
             )
 
-        # Check compatibility of screen dimensions and cell size
-        cell_size = int(content['cell_size'])
+        # Check the fulfillement of the law of total probability
+        total_prob = 0
+        for color in ('green', 'yellow', 'red', 'mountain'):
+            total_prob += content[color]
 
-        if not (self.__WINDOW_WIDTH % cell_size == 0 and \
-            self.__WINDOW_HEIGHT % cell_size == 0):
-            raise ValueError('\'cell_size\' and \'grid_dim\' are incompatible')
+        if round(total_prob, 2) != 1:
+            raise ValueError('Violated law of total probability')
 
         return content
 
     def __config_check(self, field, value):
         data_type = CONFIG_FIELDS[field]
+
         if data_type == 'prob':
             try:
-                return 0 <= float(value) <= 1
+                is_valid = 0 <= float(value) <= 1
             except:
-                return False
-        elif data_type in ('ts', 'int'):
+                is_valid = False
+
+            f_transform = lambda x : float(x)
+        elif data_type == 'int':
             try:
-                return int(value) > 1
+                is_valid = int(value) > 1
             except:
-                return False
-        elif data_type == 'dim':
+                is_valid = False
+
+            f_transform = lambda x : int(x)
+        elif data_type == 'int_tuple':
             try:
-                w, h = value.split(',')
-                return int(w) > 0 and int(h) > 0
+                x, y = value.split(",")
+                is_valid = int(x) > 1 and int(y) > 1
             except:
-                return False
+                is_valid = False
+
+            f_transform = lambda x : list(map(int, x.split(',')))
         else:
             raise ValueError('Unknown data_type of \'{}\''.format(field))
 
+        return is_valid, f_transform
+
     def __build(self):
-        # Start the environment engine
         pygame.init()
+        # Basic window configuration
         pygame.display.set_caption('AASMA Environment')
         self.__screen = pygame.display.set_mode(
             (self.__WINDOW_WIDTH, self.__WINDOW_HEIGHT)
@@ -156,16 +175,20 @@ class Environment:
 
         # Draw the environment itself
         self.__draw_and_spawn_environment()
-        self.__draw_and_spawn_character()
+
+        # First screen render
         pygame.display.flip()
 
-        # Start the environment engine clock
-        self.__clock = pygame.time.Clock()
-
     def __draw_and_spawn_environment(self):
-        # Fill the window
+        # Load required sprites for later use
+        cell_size = self.__config['cell_size']
+        mountain = pygame.transform.scale(
+            pygame.image.load(MOUNTAIN_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
+        )
+
         # This will eventually be (after heatmap placement)
-        # the lines which separate cells (thickness=1)
+        # the color of the cell sperating lines
         self.__screen.fill((0, 0, 0))
 
         # Init the heat map
@@ -174,131 +197,187 @@ class Environment:
 
         # Heat signature probability distribution
         p_distribution = np.array([
-            float(self.__config['green']),
-            float(self.__config['yellow']),
-            float(self.__config['red']),
-            float(self.__config['mountain'])
+            self.__config['green'],
+            self.__config['yellow'],
+            self.__config['red'],
+            self.__config['mountain']
         ])
+        choice = ('green', 'yellow', 'red', 'mountain')
 
         # Populate each cell with a heat signature and biome elements
-        cell_size = int(self.__config['cell_size'])
         for x in range(0, self.__WINDOW_WIDTH, cell_size):
-            row_repr = []
+            row = []
             for y in range(0, self.__WINDOW_HEIGHT, cell_size):
-                color = np.random.choice(
-                    ('green', 'yellow', 'red', 'mountain'), 1,
-                    p=p_distribution
-                )[0]
+                # Create the heat signature cell
+                do_draw = True
+                while do_draw:
+                    # Assume it's a one time draw
+                    do_draw = False
+                    # Draw the color
+                    color = np.random.choice(choice, 1, p=p_distribution)[0]
 
-                cell = pygame.Rect(
-                    x + 2, y + 2,
-                    cell_size - 2, cell_size - 2
-                )
+                    if color == 'mountain':
+                        # Mountain mirroring avoidance
+                        do_draw = not self.__check_good_mountain_pos(
+                            x//cell_size, y//cell_size
+                        )
 
-                # Just load mountains according to the probability
-                # given in config.json
-                p_mountain = float(self.__config['mountain'])
-
+                # Create a heatmap tile ((cell_size-4) * (cell_size-4))
+                # and place it in the environment
                 pygame.draw.rect(
                     self.__screen, HEATMAP_COLORS[color],
-                    cell, 0 # 0 = fill cell
+                    pygame.Rect(
+                        x + 2, y + 2,
+                        cell_size - 2, cell_size - 2
+                    ),
+                    0 # 0 = fill cell
                 )
 
                 # Add cell to environment matrix representation
                 # cell = [color, time step]
-                row_repr.append([color, 0, False])
+                row.append([
+                    color,
+                    0 if color == 'mountain' else \
+                    randint(*self.__config[
+                        color + '-' + self.__get_next_evolution_color(color)
+                    ])
+                ])
 
+                # Sprite injection
+                # The only sprite to be inserted at this stage is the mountain
+                # Fires don't exist in the beginning
+                # Characters are not spawned here
                 if color == 'mountain':
-                    mountain = pygame.image.load(
-                        MOUNTAIN_SPRITE_FILEPATH
-                    )
-                    mountain = pygame.transform.scale(
-                        mountain, (cell_size - 2, cell_size - 2)
-                    )
                     self.__screen.blit(mountain, (x + 2, y + 2))
 
-            # Add row to the matrix representation of the environment
-            self.__matrix_repr.append(row_repr)
+            # Add entire row to the matrix representation
+            self.__env_mtrx_repr.append(row)
+
+    def __get_next_evolution_color(self, color):
+        try:
+            return HEATMAP_TRANSITION_GUIDE[
+                (HEATMAP_TRANSITION_GUIDE.index(color) + 1) \
+                % len(HEATMAP_TRANSITION_GUIDE)
+            ]
+        except:
+            raise ValueError(
+                'Can\'t update cell with color \'{}\''.format(color)
+            )
+
+    def __check_good_mountain_pos(self, x, y):
+        # TODO
+        return True
 
     def __draw_and_spawn_character(self):
-        # Spawn a character at a random location
-        # (without collision with other eventual characters and biome elements)
-        cell_size = int(self.__config['cell_size'])
-
-        character = pygame.image.load(CHARACTER_SPRITE_FILEPATH)
+        # Load character sprite
+        cell_size = self.__config['cell_size']
         character = pygame.transform.scale(
-            character, (cell_size - 2, cell_size - 2)
+            pygame.image.load(CHARACTER_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
         )
 
+        # Spawn a character at a random location
+        # (without collision with other characters and biome elements)
         do_spawn = True
         while do_spawn:
-            x_index = randrange(0, self.__WINDOW_WIDTH // cell_size)
-            x = x_index * cell_size
-            y_index = randrange(0, self.__WINDOW_HEIGHT // cell_size)
-            y = y_index * cell_size
+            # Get a new random position (both in pixels and cell units)
+            x_mtrx_i = randint(0, (self.__WINDOW_WIDTH // cell_size) - 1)
+            x = x_mtrx_i * cell_size
+            y_mtrx_i = randint(0, (self.__WINDOW_HEIGHT // cell_size) - 1)
+            y = y_mtrx_i * cell_size
 
-            env_position_repr = self.__matrix_repr[x_index][y_index]
-            if env_position_repr[0] != 'mountain':
+            # Collision avoidance
+            # with biome elements...
+            env_pos = self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i]
+            has_biome_object = env_pos[0] == 'mountain'
+
+            # ... and with other characters
+            has_character = False
+            for agent in self.__characters:
+                coll_x, coll_y = agent['x'], agent['y']
+                has_character = (coll_x == x_mtrx_i) and (coll_y == y_mtrx_i)
+                if has_character:
+                    break
+
+            if not (has_biome_object or has_character):
                 do_spawn = False
-                self.__matrix_repr[x_index][y_index][2] = True
 
+        # Create a unique agent id
+        now = datetime.now()
+        cur_time = now.strftime("%m/%d/%Y%H:%M:%S.%f")
+        agent_id = hashlib.sha1(cur_time.encode()).hexdigest()
+
+        self.__characters.append({'id': agent_id, 'x': x, 'y': y })
         self.__screen.blit(character, (x + 2, y + 2))
 
-    def run(self):
-        EXECUTE = True
-        while EXECUTE:
-            # Handle Pygame events
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                        EXECUTE = False
+    def __update_heatmap(self):
+        cell_size = self.__config['cell_size']
+        # Load the fire sprite once throughout this update
+        fire = pygame.transform.scale(
+            pygame.image.load(FIRE_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
+        )
 
-            # Run an update on the env grid
-            # (without external interference)
-            cell_size = int(self.__config['cell_size'])
-            for x in range(0, self.__WINDOW_WIDTH, cell_size):
-                for y in range(0, self.__WINDOW_HEIGHT, cell_size):
-                    # Update matrix representation of the environment
-                    cell = self.__matrix_repr[x // cell_size][y // cell_size]
-                    color, ts, has_agent = cell
+        for x in range(0, self.__WINDOW_WIDTH, cell_size):
+            x_mtrx_i = x // cell_size
+            for y in range(0, self.__WINDOW_HEIGHT, cell_size):
+                y_mtrx_i = y // cell_size
 
-                    # Next heatmap signature to be displayed
-                    if color != 'mountain':
-                        i = HEATMAP_TRANSITION_GUIDE.index(color)
-                        next_hm_signature = HEATMAP_TRANSITION_GUIDE[(i + 1) % len(HEATMAP_TRANSITION_GUIDE)]
+                color, ts = self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i]
 
-                        if ts >= self.__config[color + '-' + next_hm_signature]:
-                            self.__matrix_repr[x // cell_size][y // cell_size][0] = next_hm_signature
-                            self.__matrix_repr[x // cell_size][y // cell_size][1] = 0
-                        else:
-                            self.__matrix_repr[x // cell_size][y // cell_size][1] += 1
+                if (ts <= 0) and (color != 'mountain'):
+                    # Update heatmat tile
+                    # Get the color of the current update
+                    color = self.__get_next_evolution_color(color)
 
-                        # Update pygame environment
-                        cell = pygame.Rect(
+                    # Place the new heatmap tile in the screen
+                    pygame.draw.rect(
+                        self.__screen, HEATMAP_COLORS[color],
+                        pygame.Rect(
                             x + 2, y + 2,
                             cell_size - 2, cell_size - 2
-                        )
+                        ),
+                        0 # 0 = fill cell
+                    )
 
-                        pygame.draw.rect(self.__screen, HEATMAP_COLORS[self.__matrix_repr[x // cell_size][y // cell_size][0]], cell, 0)
+                    if color == 'fire':
+                        self.__screen.blit(fire, (x + 2, y + 2))
 
-                        #Adds a fire sprite to the fire blocks
-                        if self.__matrix_repr[x // cell_size][y // cell_size][0] == 'fire':
-                            fire = pygame.image.load(FIRE_SPRITE_FILEPATH)
-                            fire = pygame.transform.scale(fire, (cell_size - 2, cell_size - 2))
-                            self.__screen.blit(fire, (x + 2, y + 2))
+                    # Get the next color to be displayed
+                    # (when time step resets)
+                    next_color = self.__get_next_evolution_color(color)
 
-                    if has_agent:
-                        # TODO
-                        # KEYS ARE NOT GOOD FOR MULTIPLE AGENTS
-                        # WHAT TO USE?
+                    # Update cell of matrix representation
+                    self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i] = [
+                        color,
+                        randint(*self.__config[color + '-' + next_color])
+                    ]
+                elif ts > 0:
+                    # Passage passage of time
+                    self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i][1] -= 1
 
-                        character = pygame.image.load(CHARACTER_SPRITE_FILEPATH)
-                        character = pygame.transform.scale(
-                            character, (cell_size - 2, cell_size - 2)
-                        )
+    def __update_character(self):
+        for agent in self.__characters:
+            # Check if an agent has moved
+            # Check if heatmap tile has been updated
+            # TODO
+            continue
 
-                        self.__screen.blit(character, (x + 2, y + 2))
+    def run(self):
+        # Start the clock
+        clock = pygame.time.Clock()
+
+        # Main loop
+        while True:
+            # Handle exit event
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                        return
+
+            # Update heatmap...
+            self.__update_heatmap()
+            # ...and character movement
+            self.__update_character()
 
             pygame.display.flip()
-
-            # Tick the clock with 15Hz (15 frame per second)
-            self.__clock.tick(15)
+            clock.tick(FPS)
