@@ -268,7 +268,57 @@ class Environment:
             )
 
     def __check_good_mountain_pos(self, x, y):
-        # TODO
+        if y == 0:
+            return True
+
+        # (1) and (4)
+        try:
+            pos_1 = self.__env_mtrx_repr[y-1][x+1][0] == 'mountain'
+        except:
+            return False
+
+        # (1)
+        try:
+            pos_2 = self.__env_mtrx_repr[y-2][x][0] == 'mountain'
+        except:
+            pos_2 = False
+
+        if pos_1 and pos_2:
+            return False
+
+        # (4)
+        try:
+            pos_2 = self.__env_mtrx_repr[y-1][x-1][0] == 'mountain'
+        except:
+            pos_2 = False
+
+        if pos_1 and pos_2:
+            return False
+
+        # (2) and (3)
+        try:
+            pos_1 = self.__env_mtrx_repr[y-1][x-1][0] == 'mountain'
+        except:
+            return False
+
+        # (2)
+        try:
+            pos_2 = self.__env_mtrx_repr[y-2][x][0] == 'mountain'
+        except:
+            pos_2 = False
+
+        if pos_1 and pos_2:
+            return False
+
+        # (3)
+        try:
+            pos_2 = self.__env_mtrx_repr[y][x-2][0] == 'mountain'
+        except:
+            pos_2 = False
+
+        if pos_1 and pos_2:
+            return False
+
         return True
 
     def __draw_and_spawn_character(self):
@@ -316,8 +366,6 @@ class Environment:
         self.__screen.blit(character, (x + 2, y + 2))
 
     def __update_heatmap(self):
-        # TODO
-        # Reset when agent enters the cell
         cell_size = self.__config['cell_size']
         # Load the fire sprite once throughout this update
         fire = pygame.transform.scale(
@@ -387,6 +435,8 @@ class Environment:
             self.__screen.blit(fire, (x*cell_size + 2, y*cell_size + 2))
 
     def __update_character(self):
+        # TODO
+        # Reset when agent enters the cell
         for agent in self.__characters:
             #Get the pos in matrix form to return the current color
             cell_size = self.__config['cell_size']
