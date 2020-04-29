@@ -449,7 +449,7 @@ class Environment:
                         return
 
             # Update heatmap...
-            #self.__update_heatmap()
+            self.__update_heatmap()
             # ...and character movement
             self.__update_character()
 
