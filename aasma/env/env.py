@@ -205,9 +205,9 @@ class Environment:
         choice = ('green', 'yellow', 'red', 'mountain')
 
         # Populate each cell with a heat signature and biome elements
-        for x in range(0, self.__WINDOW_WIDTH, cell_size):
+        for y in range(0, self.__WINDOW_WIDTH, cell_size):
             row = []
-            for y in range(0, self.__WINDOW_HEIGHT, cell_size):
+            for x in range(0, self.__WINDOW_HEIGHT, cell_size):
                 # Create the heat signature cell
                 do_draw = True
                 while do_draw:
@@ -265,7 +265,57 @@ class Environment:
             )
 
     def __check_good_mountain_pos(self, x, y):
-        # TODO
+        if y == 0:
+            return True
+
+        # (1) and (4)
+        try:
+            pos_1 = self.__env_mtrx_repr[y-1][x+1][0] == 'mountain'
+        except:
+            return False
+
+        # (1)
+        try:
+            pos_2 = self.__env_mtrx_repr[y-2][x][0] == 'mountain'
+        except:
+            pos_2 = False
+
+        if pos_1 and pos_2:
+            return False
+
+        # (4)
+        try:
+            pos_2 = self.__env_mtrx_repr[y-1][x-1][0] == 'mountain'
+        except:
+            pos_2 = False
+
+        if pos_1 and pos_2:
+            return False
+
+        # (2) and (3)
+        try:
+            pos_1 = self.__env_mtrx_repr[y-1][x-1][0] == 'mountain'
+        except:
+            return False
+
+        # (2)
+        try:
+            pos_2 = self.__env_mtrx_repr[y-2][x][0] == 'mountain'
+        except:
+            pos_2 = False
+
+        if pos_1 and pos_2:
+            return False
+
+        # (3)
+        try:
+            pos_2 = self.__env_mtrx_repr[y][x-2][0] == 'mountain'
+        except:
+            pos_2 = False
+
+        if pos_1 and pos_2:
+            return False
+
         return True
 
     def __draw_and_spawn_character(self):
@@ -311,8 +361,6 @@ class Environment:
         self.__screen.blit(character, (x + 2, y + 2))
 
     def __update_heatmap(self):
-        # TODO
-        # Reset when agent enters the cell
         cell_size = self.__config['cell_size']
         # Load the fire sprite once throughout this update
         fire = pygame.transform.scale(
@@ -359,6 +407,8 @@ class Environment:
                     self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i][1] -= 1
 
     def __update_character(self):
+        # TODO
+        # Reset when agent enters the cell
         for agent in self.__characters:
             # Check if an agent has moved
             # Check if heatmap tile has been updated
@@ -377,7 +427,7 @@ class Environment:
                         return
 
             # Update heatmap...
-            self.__update_heatmap()
+            #self.__update_heatmap()
             # ...and character movement
             self.__update_character()
 
