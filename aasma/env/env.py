@@ -14,7 +14,7 @@ import os
 import re, json
 import hashlib
 from datetime import datetime
-from random import randint
+from random import randint, choice
 
 import numpy as np
 import pygame
@@ -208,9 +208,9 @@ class Environment:
         choice = ('green', 'yellow', 'red', 'mountain')
 
         # Populate each cell with a heat signature and biome elements
-        for x in range(0, self.__WINDOW_WIDTH, cell_size):
+        for y in range(0, self.__WINDOW_WIDTH, cell_size):
             row = []
-            for y in range(0, self.__WINDOW_HEIGHT, cell_size):
+            for x in range(0, self.__WINDOW_HEIGHT, cell_size):
                 # Create the heat signature cell
                 do_draw = True
                 while do_draw:
@@ -291,7 +291,7 @@ class Environment:
 
             # Collision avoidance
             # with biome elements...
-            env_pos = self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i]
+            env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
             has_biome_object = env_pos[0] == 'mountain'
 
             # ... and with other characters
@@ -311,7 +311,8 @@ class Environment:
         agent_id = hashlib.sha1(cur_time.encode()).hexdigest()
 
         # The values of the previous are initialized with the spawn coordinates
-        self.__characters.append({'id': agent_id, 'x': x, 'y': y, 'x_prev': x, 'y_prev': y, 'spawn_color': env_pos[0]})
+        self.__characters.append({'id': agent_id, 'x': x_mtrx_i, 'y': y_mtrx_i,
+                'x_prev': x_mtrx_i, 'y_prev': y_mtrx_i, 'spawn_color': env_pos[0]})
         self.__screen.blit(character, (x + 2, y + 2))
 
     def __update_heatmap(self):
@@ -329,7 +330,7 @@ class Environment:
             for y in range(0, self.__WINDOW_HEIGHT, cell_size):
                 y_mtrx_i = y // cell_size
 
-                color, ts = self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i]
+                color, ts = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
 
                 if (ts <= 0) and (color != 'mountain'):
                     # Update heatmat tile
@@ -354,29 +355,69 @@ class Environment:
                     next_color = self.__get_next_evolution_color(color)
 
                     # Update cell of matrix representation
-                    self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i] = [
+                    self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i] = [
                         color,
                         randint(*self.__config[color + '-' + next_color])
                     ]
                 elif ts > 0:
                     # Passage passage of time
-                    self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i][1] -= 1
+                    self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][1] -= 1
+
+    def redraw_color(self, x, y, color):
+
+        cell_size = self.__config['cell_size']
+
+        # Load the fire sprite
+        fire = pygame.transform.scale(
+            pygame.image.load(FIRE_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
+        )
+
+        # Place the heatmap tile in the screen without the drone sprite
+        pygame.draw.rect(
+            self.__screen, HEATMAP_COLORS[color],
+            pygame.Rect(
+                x*cell_size + 2, y*cell_size + 2,
+                cell_size - 2, cell_size - 2
+            ),
+            0 # 0 = fill cell
+        )
+
+        if color == 'fire':
+            self.__screen.blit(fire, (x*cell_size + 2, y*cell_size + 2))
 
     def __update_character(self):
         for agent in self.__characters:
             #Get the pos in matrix form to return the current color
             cell_size = self.__config['cell_size']
-            x_mtrx_i = agent['x'] // cell_size
-            y_mtrx_i = agent['y'] // cell_size
-            env_pos = self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i]
+            x_mtrx_i = agent['x']
+            y_mtrx_i = agent['y']
+            env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
             env_pos_color = env_pos[0]
 
             # Check if an agent has moved
             # Check if heatmap tile has been updated
-            if (agent['x'] != agent['x_prev'] or agent['y'] != agent['y_prev'])\
-                    or agent['spawn_color'] != env_pos_color:
+            if (agent['x'] != agent['x_prev'] or agent['y'] != agent['y_prev']):
 
-                #Update the new spawn color
+                #Redraw the previous tile without the drone sprite
+                self.redraw_color(agent['x_prev'], agent['y_prev'], agent['spawn_color'])
+
+                #Update the previous pos
+                agent['x_prev'] = agent['x']
+                agent['y_prev'] = agent['y']
+
+                # Load character sprite
+                cell_size = self.__config['cell_size']
+                character = pygame.transform.scale(
+                    pygame.image.load(CHARACTER_SPRITE_FILEPATH),
+                    (cell_size - 2, cell_size - 2)
+                )
+                self.__screen.blit(character, (agent['x'] * cell_size + 2,
+                    agent['y'] * cell_size + 2))
+
+            if agent['spawn_color'] != env_pos_color:
+
+                #Update the color
                 agent['spawn_color'] = env_pos_color
 
                 # Load character sprite
@@ -385,7 +426,64 @@ class Environment:
                     pygame.image.load(CHARACTER_SPRITE_FILEPATH),
                     (cell_size - 2, cell_size - 2)
                 )
-                self.__screen.blit(character, (agent['x'] + 2, agent['y'] + 2))
+                self.__screen.blit(character, (agent['x'] * cell_size + 2,
+                    agent['y'] * cell_size + 2))
+
+    def move_agent(self, agent_id, action):
+        cell_size = self.__config['cell_size']
+
+        #Find the agent with the requested id
+        for agent in self.__characters:
+            if agent["id"] == agent_id:
+
+                if action == "left":
+                    if agent["x"]-1 >= 0:
+
+                        x_mtrx_i = agent['x'] - 1
+                        y_mtrx_i = agent['y']
+                        env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
+                        env_pos_color = env_pos[0]
+
+                        if env_pos_color != "mountain":
+                            agent["x_prev"] = agent["x"]
+                            agent["x"] -= 1
+
+                elif action == "right":
+                    max_x = len(self.__env_mtrx_repr[0])
+                    if agent['x'] + 1 < max_x:
+                        x_mtrx_i = agent['x'] + 1
+                        y_mtrx_i = agent['y']
+                        env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
+                        env_pos_color = env_pos[0]
+
+                        if env_pos_color != "mountain":
+                            agent["x_prev"] = agent["x"]
+                            agent["x"] += 1
+
+                elif action == "up":
+                    if agent["y"] - 1 >= 0:
+                        x_mtrx_i = agent['x']
+                        y_mtrx_i = agent['y'] - 1
+                        env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
+                        env_pos_color = env_pos[0]
+
+                        if env_pos_color != "mountain":
+                            agent["y_prev"] = agent["y"]
+                            agent["y"] -= 1
+
+                elif action == "down":
+                    max_y = len(self.__env_mtrx_repr)
+                    if agent['y'] + 1 < max_y:
+                        x_mtrx_i = agent['x']
+                        y_mtrx_i = agent['y'] + 1
+                        env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
+                        env_pos_color = env_pos[0]
+
+                        if env_pos_color != "mountain":
+                            agent["y_prev"] = agent["y"]
+                            agent["y"] += 1
+                else:
+                    raise ValueError('Invalid Action')
 
     def run(self):
         # Start the clock
@@ -402,6 +500,11 @@ class Environment:
             self.__update_heatmap()
             # ...and character movement
             self.__update_character()
+
+            # Test randomness
+            for agent in self.__characters:
+                movement = choice(["left", "right", "up", "down"])
+                self.move_agent(agent["id"], movement)
 
             pygame.display.flip()
             clock.tick(FPS)
