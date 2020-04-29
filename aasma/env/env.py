@@ -176,6 +176,9 @@ class Environment:
         # Draw the environment itself
         self.__draw_and_spawn_environment()
 
+        # Draw the character
+        self.__draw_and_spawn_character()
+
         # First screen render
         pygame.display.flip()
 
@@ -307,7 +310,8 @@ class Environment:
         cur_time = now.strftime("%m/%d/%Y%H:%M:%S.%f")
         agent_id = hashlib.sha1(cur_time.encode()).hexdigest()
 
-        self.__characters.append({'id': agent_id, 'x': x, 'y': y })
+        # The values of the previous are initialized with the spawn coordinates
+        self.__characters.append({'id': agent_id, 'x': x, 'y': y, 'x_prev': x, 'y_prev': y, 'spawn_color': env_pos[0]})
         self.__screen.blit(character, (x + 2, y + 2))
 
     def __update_heatmap(self):
@@ -360,10 +364,28 @@ class Environment:
 
     def __update_character(self):
         for agent in self.__characters:
+            #Get the pos in matrix form to return the current color
+            cell_size = self.__config['cell_size']
+            x_mtrx_i = agent['x'] // cell_size
+            y_mtrx_i = agent['y'] // cell_size
+            env_pos = self.__env_mtrx_repr[x_mtrx_i][y_mtrx_i]
+            env_pos_color = env_pos[0]
+
             # Check if an agent has moved
             # Check if heatmap tile has been updated
-            # TODO
-            continue
+            if (agent['x'] != agent['x_prev'] or agent['y'] != agent['y_prev'])\
+                    or agent['spawn_color'] != env_pos_color:
+
+                #Update the new spawn color
+                agent['spawn_color'] = env_pos_color
+
+                # Load character sprite
+                cell_size = self.__config['cell_size']
+                character = pygame.transform.scale(
+                    pygame.image.load(CHARACTER_SPRITE_FILEPATH),
+                    (cell_size - 2, cell_size - 2)
+                )
+                self.__screen.blit(character, (agent['x'] + 2, agent['y'] + 2))
 
     def run(self):
         # Start the clock
