@@ -42,7 +42,7 @@ CONFIG_FIELDS = {
     'green-yellow': 'int_tuple',
     'yellow-red': 'int_tuple',
     'red-fire': 'int_tuple',
-    'fire-green': 'int_tuple',
+    'fire-yellow': 'int_tuple',
     # Character mechanics
     'search-cell': 'int0'
 }
@@ -56,7 +56,7 @@ HEATMAP_COLORS = {
     'mountain': (153, 102, 51) # brown
 }
 
-HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire')
+HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire', 'yellow')
 
 # Environment engine configuration
 FPS = 15 # frames per second (in Hz)
@@ -186,7 +186,8 @@ class Environment:
         self.__draw_and_spawn_environment()
 
         # Draw the character
-        self.__draw_and_spawn_character()
+        for _ in range(2):
+            self.__draw_and_spawn_character()
 
         # First screen render
         pygame.display.flip()
@@ -375,7 +376,7 @@ class Environment:
             'x': x_mtrx_i, 'y': y_mtrx_i,
             'x_prev': x_mtrx_i, 'y_prev': y_mtrx_i,
             'cur_search': 0,
-            'spawn_color': env_pos[0]
+            'cur_color': env_pos[0]
         })
         self.__screen.blit(character, (x + 2, y + 2))
 
@@ -469,6 +470,18 @@ class Environment:
                     0 # 0 = fill cell
                 )
 
+                agent['cur_color'] = 'green'
+
+                # REDRAW CHARACTER (SHITY CODE)
+                character = pygame.transform.scale(
+                    pygame.image.load(CHARACTER_SPRITE_FILEPATH),
+                    (cell_size - 2, cell_size - 2)
+                )
+                self.__screen.blit(
+                    character,
+                    (agent['x'] * cell_size + 2, agent['y'] * cell_size + 2)
+                )
+
                 # Update cell of matrix representation
                 self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i] = [
                     'green',
@@ -483,11 +496,10 @@ class Environment:
                 agent['x'] != agent['x_prev'] or \
                 agent['y'] != agent['y_prev']
             ):
-
                 # Redraw the previous tile without the drone sprite
                 self.__redraw_heatmap_cell(
                     agent['x_prev'], agent['y_prev'],
-                    agent['spawn_color']
+                    agent['cur_color']
                 )
 
                 # Update the previous pos
@@ -509,9 +521,9 @@ class Environment:
             else:
                 agent['cur_search'] += 1
 
-            if agent['spawn_color'] != env_pos_color:
+            if agent['cur_color'] != env_pos_color:
                 # Update the color
-                agent['spawn_color'] = env_pos_color
+                agent['cur_color'] = env_pos_color
 
                 # Load character sprite
                 cell_size = self.__config['cell_size']
