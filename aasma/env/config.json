@@ -1,12 +1,13 @@
 {
   "grid_dim": "600,600",
   "cell_size": 60,
-  "mountain": 0.05,
-  "green": 0.6,
-  "yellow": 0.3,
+  "mountain": 0.2,
+  "green": 0.55,
+  "yellow": 0.2,
   "red": 0.05,
   "green-yellow": "75,225",
   "yellow-red": "225,300",
   "red-fire": "300,450",
-  "fire-green": "450,600"
+  "fire-green": "450,600",
+  "search-cell": 0
 }
