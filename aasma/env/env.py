@@ -4,20 +4,24 @@
 # File : env.py
 #
 # @ start date          22 04 2020
-# @ last update         30 04 2020
+# @ last update         03 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-import os
-import re, json
+import os, re, json
 import hashlib
-from datetime import datetime
-from random import randint, choice
 
-import numpy as np
+import time
+from datetime import datetime
+
 import pygame
+import numpy as np
+from random import randint
+
+import zmq
+from threading import Thread, Lock
 
 #---------------------------------
 # PWD
@@ -32,7 +36,7 @@ PATH = PATH[:len(PATH) - 6]
 CONFIG_FIELDS = {
     # Dimensionality
     'grid_dim': 'int_tuple', # int_tuple is (int > 0, int > 0)
-    'cell_size': 'int',
+    'cell_size': 'int+',
     # Spawn
     'mountain': 'prob', # prob belongs to [0, 1]
     'green': 'prob',
@@ -44,7 +48,16 @@ CONFIG_FIELDS = {
     'red-fire': 'int_tuple',
     'fire-yellow': 'int_tuple',
     # Character mechanics
-    'search-cell': 'int0'
+    'search-cell-time': 'int0',
+    # Score rewards
+    'sc_invalid_pos': 'int',
+    'sc_green_detect': 'int',
+    'sc_yellow_detect': 'int',
+    'sc_red_detect': 'int',
+    'sc_green_exist': 'int',
+    'sc_yellow_exist': 'int',
+    'sc_red_exist': 'int',
+    'sc_fire_exist': 'int'
 }
 
 HEATMAP_COLORS = {
@@ -52,7 +65,6 @@ HEATMAP_COLORS = {
     'yellow': (255, 204, 0),
     'red': (250, 0, 0),
     'fire': (0, 0, 0),
-    # Biome locked cell color
     'mountain': (153, 102, 51) # brown
 }
 
@@ -81,6 +93,14 @@ class Environment:
         self.__screen = None
         self.__env_mtrx_repr = []
         self.__characters = []
+
+        self.__score = 0
+        self.__metrics = {
+            'n_fire': 0,
+            'n_red': 0,
+            'n_yellow': 0,
+            'n_green': 0
+        }
 
         # Build the environment
         # (heatmap gridworld with heat signatures and biome elements)
@@ -147,18 +167,23 @@ class Environment:
                 is_valid = False
 
             f_transform = lambda x : float(x)
-        elif data_type == 'int':
-            try:
-                is_valid = int(value) > 1
-            except:
-                is_valid = False
-
-            f_transform = lambda x : int(x)
-        elif data_type == 'int0':
-            try:
-                is_valid = int(value) >= 0
-            except:
-                is_valid = False
+        elif data_type in ('int+', 'int', 'int0'):
+            if data_type == 'int+':
+                try:
+                    is_valid = int(value) > 1
+                except:
+                    is_valid = False
+            elif data_type == 'int':
+                try:
+                    int(value) # As long as this holds, is valid
+                    is_valid = True
+                except:
+                    is_valid = False
+            elif data_type == 'int0':
+                try:
+                    is_valid = int(value) >= 0
+                except:
+                    is_valid = False
 
             f_transform = lambda x : int(x)
         elif data_type == 'int_tuple':
@@ -185,23 +210,19 @@ class Environment:
         # Draw the environment itself
         self.__draw_and_spawn_environment()
 
-        # Draw the character
-        for _ in range(2):
-            self.__draw_and_spawn_character()
-
         # First screen render
         pygame.display.flip()
 
     def __draw_and_spawn_environment(self):
-        # Load required sprites for later use
         cell_size = self.__config['cell_size']
+        # Load required sprites for later use
         mountain = pygame.transform.scale(
             pygame.image.load(MOUNTAIN_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
         )
 
         # This will eventually be (after heatmap placement)
-        # the color of the cell sperating lines
+        # the color of the cell separating lines
         self.__screen.fill((0, 0, 0))
 
         # Init the heat map
@@ -215,11 +236,11 @@ class Environment:
             self.__config['red'],
             self.__config['mountain']
         ])
-        choice = ('green', 'yellow', 'red', 'mountain')
+        c_choice = ('green', 'yellow', 'red', 'mountain')
 
         # Populate each cell with a heat signature and biome elements
         for y in range(0, self.__WINDOW_WIDTH, cell_size):
-            row = []
+            row_repr = []
             for x in range(0, self.__WINDOW_HEIGHT, cell_size):
                 # Create the heat signature cell
                 do_draw = True
@@ -227,7 +248,7 @@ class Environment:
                     # Assume it's a one time draw
                     do_draw = False
                     # Draw the color
-                    color = np.random.choice(choice, 1, p=p_distribution)[0]
+                    color = np.random.choice(c_choice, 1, p=p_distribution)[0]
 
                     if color == 'mountain':
                         # Mountain mirroring avoidance
@@ -248,7 +269,7 @@ class Environment:
 
                 # Add cell to environment matrix representation
                 # cell = [color, time step]
-                row.append([
+                row_repr.append([
                     color,
                     0 if color == 'mountain' else \
                     randint(*self.__config[
@@ -262,9 +283,13 @@ class Environment:
                 # Characters are not spawned here
                 if color == 'mountain':
                     self.__screen.blit(mountain, (x + 2, y + 2))
+                else:
+                    # Update score
+                    self.__score += self.__config['sc_' + color + '_exist']
+                    self.__metrics['n_' + color] += 1
 
             # Add entire row to the matrix representation
-            self.__env_mtrx_repr.append(row)
+            self.__env_mtrx_repr.append(row_repr)
 
     def __get_next_evolution_color(self, color):
         try:
@@ -278,16 +303,26 @@ class Environment:
             )
 
     def __check_good_mountain_pos(self, x, y):
+        # Placements in first row are always allowed
         if y == 0:
             return True
 
-        # (1) and (4)
+        # Layouts which are avoided by this algorithm
+        # (All off the situations are evaluated at the positions with
+        # greater value of y and x)
+        # Layouts:
+        # (1) --M--  (2) --M--  (3) --M--  (4) ----
+        #     -M---      ---M-      -M-M-      -M-M-
+        #     --M--      --M--      -----      --M--
+
+        # Solve those layouts
+        # (2) and (4)
         try:
             pos_1 = self.__env_mtrx_repr[y-1][x+1][0] == 'mountain'
         except:
             return False
 
-        # (1)
+        # (2)
         try:
             pos_2 = self.__env_mtrx_repr[y-2][x][0] == 'mountain'
         except:
@@ -305,13 +340,13 @@ class Environment:
         if pos_1 and pos_2:
             return False
 
-        # (2) and (3)
+        # (1) and (3)
         try:
             pos_1 = self.__env_mtrx_repr[y-1][x-1][0] == 'mountain'
         except:
             return False
 
-        # (2)
+        # (1)
         try:
             pos_2 = self.__env_mtrx_repr[y-2][x][0] == 'mountain'
         except:
@@ -332,8 +367,8 @@ class Environment:
         return True
 
     def __draw_and_spawn_character(self):
-        # Load character sprite
         cell_size = self.__config['cell_size']
+        # Load character sprite
         character = pygame.transform.scale(
             pygame.image.load(CHARACTER_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
@@ -356,8 +391,8 @@ class Environment:
 
             # ... and with other characters
             has_character = False
-            for agent in self.__characters:
-                coll_x, coll_y = agent['x'], agent['y']
+            for character in self.__characters:
+                coll_x, coll_y = character['x'], character['y']
                 has_character = (coll_x == x_mtrx_i) and (coll_y == y_mtrx_i)
                 if has_character:
                     break
@@ -365,24 +400,34 @@ class Environment:
             if not (has_biome_object or has_character):
                 do_spawn = False
 
-        # Create a unique agent id
+        # Create a unique character id
         now = datetime.now()
         cur_time = now.strftime("%m/%d/%Y%H:%M:%S.%f")
-        agent_id = hashlib.sha1(cur_time.encode()).hexdigest()
+        character_id = hashlib.sha1(cur_time.encode()).hexdigest()
 
-        # The values of the previous are initialized with the spawn coordinates
-        self.__characters.append({
-            'id': agent_id,
+        # Character data structure initialization
+        if character_id in self.__characters:
+            # Really unlikely
+            raise ValueError(
+                'Couldn\'t deploy character {}'.format(character_id)
+            )
+
+        self.__characters[character_id] = {
+            'id': character_id,
+            'score': 0,
+            'curr_search_time': 0,
             'x': x_mtrx_i, 'y': y_mtrx_i,
             'x_prev': x_mtrx_i, 'y_prev': y_mtrx_i,
-            'cur_search': 0,
-            'cur_color': env_pos[0]
-        })
+            'hm_color': env_pos[0]
+        }
         self.__screen.blit(character, (x + 2, y + 2))
+
+        return character_id
 
     def __update_heatmap(self):
         cell_size = self.__config['cell_size']
         # Load the fire sprite once throughout this update
+        # (maybe needed, maybe not)
         fire = pygame.transform.scale(
             pygame.image.load(FIRE_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
@@ -410,6 +455,10 @@ class Environment:
                         0 # 0 = fill cell
                     )
 
+                    # Update score
+                    self.__score += self.__config['sc_' + color + '_exist']
+                    self.__metrics['n_' + color] += 1
+
                     if color == 'fire':
                         self.__screen.blit(fire, (x + 2, y + 2))
 
@@ -426,10 +475,12 @@ class Environment:
                     # Passage passage of time
                     self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][1] -= 1
 
-    def __redraw_heatmap_cell(self, x, y, color):
+    def __redraw_re_updated_heatmap_cell(self, y, x, color):
+        # Used in '__update_character' which happens after '__update_heatmap'
         cell_size = self.__config['cell_size']
 
         # Load the fire sprite
+        # (maybe needed, maybe not)
         fire = pygame.transform.scale(
             pygame.image.load(FIRE_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
@@ -449,168 +500,232 @@ class Environment:
             self.__screen.blit(fire, (x*cell_size + 2, y*cell_size + 2))
 
     def __update_character(self):
-        to_reset_ts = self.__config['search-cell']
-
-        for agent in self.__characters:
-            # Get the pos in matrix form to return the current color
-            cell_size = self.__config['cell_size']
-            x_mtrx_i = agent['x']
-            y_mtrx_i = agent['y']
-            env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
-            env_pos_color = env_pos[0]
-
-            if agent['cur_search'] >= to_reset_ts:
-                # Reset heatmap tile
-                pygame.draw.rect(
-                    self.__screen, HEATMAP_COLORS['green'],
-                    pygame.Rect(
-                        x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2,
-                        cell_size - 2, cell_size - 2
-                    ),
-                    0 # 0 = fill cell
-                )
-
-                agent['cur_color'] = 'green'
-
-                # REDRAW CHARACTER (SHITY CODE)
-                character = pygame.transform.scale(
-                    pygame.image.load(CHARACTER_SPRITE_FILEPATH),
-                    (cell_size - 2, cell_size - 2)
-                )
-                self.__screen.blit(
-                    character,
-                    (agent['x'] * cell_size + 2, agent['y'] * cell_size + 2)
-                )
-
-                # Update cell of matrix representation
-                self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i] = [
-                    'green',
-                    randint(*self.__config[
-                        'green-' + self.__get_next_evolution_color('green')
-                    ])
-                ]
-
-            # Check if an agent has moved
-            # Check if heatmap tile has been updated
-            if (
-                agent['x'] != agent['x_prev'] or \
-                agent['y'] != agent['y_prev']
-            ):
-                # Redraw the previous tile without the drone sprite
-                self.__redraw_heatmap_cell(
-                    agent['x_prev'], agent['y_prev'],
-                    agent['cur_color']
-                )
-
-                # Update the previous pos
-                agent['x_prev'] = agent['x']
-                agent['y_prev'] = agent['y']
-
-                agent['cur_search'] = 0
-
-                # Load character sprite
-                cell_size = self.__config['cell_size']
-                character = pygame.transform.scale(
-                    pygame.image.load(CHARACTER_SPRITE_FILEPATH),
-                    (cell_size - 2, cell_size - 2)
-                )
-                self.__screen.blit(
-                    character,
-                    (agent['x'] * cell_size + 2, agent['y'] * cell_size + 2)
-                )
-            else:
-                agent['cur_search'] += 1
-
-            if agent['cur_color'] != env_pos_color:
-                # Update the color
-                agent['cur_color'] = env_pos_color
-
-                # Load character sprite
-                cell_size = self.__config['cell_size']
-                character = pygame.transform.scale(
-                    pygame.image.load(CHARACTER_SPRITE_FILEPATH),
-                    (cell_size - 2, cell_size - 2)
-                )
-                self.__screen.blit(
-                    character,
-                    (agent['x'] * cell_size + 2, agent['y'] * cell_size + 2)
-                )
-
-    def move_agent(self, agent_id, action):
         cell_size = self.__config['cell_size']
+        time_to_reset_cell = self.__config['search-cell-time']
 
-        # Find the agent with the requested id
-        for agent in self.__characters:
-            if agent["id"] == agent_id:
+        # Load character sprite
+        cell_size = self.__config['cell_size']
+        character = pygame.transform.scale(
+            pygame.image.load(CHARACTER_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
+        )
 
-                if action == "left":
-                    if agent["x"]-1 >= 0:
-                        x_mtrx_i = agent['x'] - 1
-                        y_mtrx_i = agent['y']
-                        env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
-                        env_pos_color = env_pos[0]
+        for character in self.__characters:
+            # Current position
+            x_mtrx_i = character['x']
+            y_mtrx_i = character['y']
 
-                        if env_pos_color != "mountain":
-                            agent["x_prev"] = agent["x"]
-                            agent["x"] -= 1
+            # Previous position
+            x_prev_mtrx_i = character['x_prev']
+            y_prev_mtrx_i = character['y_prev']
 
-                elif action == "right":
-                    max_x = len(self.__env_mtrx_repr[0])
-                    if agent['x'] + 1 < max_x:
-                        x_mtrx_i = agent['x'] + 1
-                        y_mtrx_i = agent['y']
-                        env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
-                        env_pos_color = env_pos[0]
+            search_time = character['curr_search_time']
+            hm_color = self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i][0]
 
-                        if env_pos_color != "mountain":
-                            agent["x_prev"] = agent["x"]
-                            agent["x"] += 1
+            # Check if a character has moved
+            if (x_mtrx_i != x_prev_mtrx_i) or (y_mtrx_i != y_prev_mtrx_i):
+                # Check if heatmap cell color can be updated
+                if search_time > self.__config['search-cell-time']:
+                    # Update character score
+                    character['score'] += \
+                        self.__config['sc_' + hm_color + '_detect']
 
-                elif action == "up":
-                    if agent["y"] - 1 >= 0:
-                        x_mtrx_i = agent['x']
-                        y_mtrx_i = agent['y'] - 1
-                        env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
-                        env_pos_color = env_pos[0]
-
-                        if env_pos_color != "mountain":
-                            agent["y_prev"] = agent["y"]
-                            agent["y"] -= 1
-
-                elif action == "down":
-                    max_y = len(self.__env_mtrx_repr)
-                    if agent['y'] + 1 < max_y:
-                        x_mtrx_i = agent['x']
-                        y_mtrx_i = agent['y'] + 1
-                        env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
-                        env_pos_color = env_pos[0]
-
-                        if env_pos_color != "mountain":
-                            agent["y_prev"] = agent["y"]
-                            agent["y"] += 1
+                    # Character has searched the area. Now it's green!
+                    self.__redraw_re_updated_heatmap_cell(
+                        y_prev_mtrx_i, x_prev_mtrx_i, 'green'
+                    )
                 else:
-                    raise ValueError('Invalid Action')
+                    self.__redraw_re_updated_heatmap_cell(
+                        y_prev_mtrx_i, x_prev_mtrx_i, hm_color
+                    )
+
+                # Draw character on the new cell
+                self.__screen.blit(
+                    character,
+                    (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
+                )
+                character['hm_color'] = hm_color
+            else:
+                # Check if heatmap cell color can be updated
+                if search_time > self.__config['search-cell-time']:
+                    # Update character score
+                    character['score'] += \
+                        self.__config['sc_' + hm_color + '_detect']
+
+                    # Character has searched the area. Now it's green!
+                    self.__redraw_re_updated_heatmap_cell(
+                        y_mtrx_i, x_mtrx_i, 'green'
+                    )
+
+                    # Redraw character on that same cell
+                    self.__screen.blit(
+                        character,
+                        (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
+                    )
+                elif character['hm_color'] != hm_color:
+                    # Redraw character on that same cell
+                    self.__screen.blit(
+                        character,
+                        (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
+                    )
+                    character['hm_color'] = hm_color
+
+                character['curr_search_time'] += 1
+
+    def __move_character(self, id, action):
+        # Movement guide for each action and each axis
+        mov_guide = {
+            'up': {
+                'x': lambda x: x,
+                'y': lambda y: y - 1
+            },
+            'down': {
+                'x': lambda x: x,
+                'y': lambda y: y + 1
+            },
+            'left': {
+                'x': lambda x: x - 1,
+                'y': lambda y: y
+            },
+            'right': {
+                'x': lambda x: x + 1,
+                'y': lambda y: y
+            },
+            'stay': {
+                'x': lambda x: x,
+                'y': lambda y: y
+            }
+        }
+
+        if action not in mov_guide:
+            raise ValueError('Invalid Action')
+
+        # Create new position
+        character = self.__characters[id]
+        new_x_mtrx = mov_guide[action]['x'](character[id]['x'])
+        new_y_mtrx = mov_guide[action]['y'](character[id]['y'])
+
+        # Check if new position is possible
+        #  - can't move outside of the world boundaries
+        #  - can't move into fires or mountains
+        is_position_valid = True
+        if not (0 <= new_x_mtrx < len(self.__env_mtrx_repr[0])):
+            is_position_valid = False
+
+        if not (0 <= new_y_mtrx < len(self.__env_mtrx_repr)):
+            is_position_valid = False
+
+        color = self.__env_mtrx_repr[new_y_mtrx][new_x_mtrx][0]
+        if color in ('mountain', 'fire'):
+            is_position_valid = False
+
+        # If the new position is not possible...
+        # the character returns to the original position
+        # and a penalty is added to the score
+        if not is_position_valid:
+            self.__characters[id]['score'] += self.__config['sc_invalid_pos']
+        else:
+            # Update position
+            self.__characters[id]['x_prev'] = self.__characters[id]['x']
+            self.__characters[id]['y_prev'] = self.__characters[id]['y']
+            self.__characters[id]['x'] = new_x_mtrx
+            self.__characters[id]['y'] = new_y_mtrx
+
+    # TODO FROM HERE
+    def __communicator(self, semaphore):
+        # Create the structure for inter-process communication
+        socket = zmq.Context().socket(zmq.REP)
+        socket.bind("tcp://*:5555")
+
+        poller = zmq.Poller()
+        poller.register(socket)
+
+        n_threads = 0 # Incremented when a character client is subscribed
+
+        while True:
+            timeout = 500
+            t_last = time.time()
+
+            while (time.time() - t_last) < timeout:
+                ready = dict(poller.poll(10))
+                if ready.get(socket):
+                    # Run for some time before sync
+                    message = socket.recv()
+                    print("Incoming: {}".format(message))
+
+                    # Handle request
+                    message = message.split(',')
+                    if message[0] == 'create':
+                        n_threads += 1
+                        response = self.__draw_and_spawn_character()
+                    elif message[0] == 'move':
+                        self.__move_character(message[1], message[2])
+                        response = 'ok'
+                    else:
+                        raise ValueError('Couldn\'t handle message')
+
+                    # Send response back to character client
+                    socket.send(response.encode())
+                    break
+
+                self.socket.send_multipart(['hello', b''])
+                t_last = time.time()
+
+            if (time.time() - t_last) >= timeout:
+                print("Timed out before recieving a signal to continue")
+
+            # Thread sync
+            global SEMAPHORE
+            global SEMAPHORE_LOCK
+
+            SEMAPHORE_LOCK.acquire()
+            SEMAPHORE -= 1
+            SEMAPHORE_LOCK.release()
 
     def run(self):
         # Start the clock
-        clock = pygame.time.Clock()
+        clock = pygame.time.Clock() ; n_ticks = 0 ; seconds = 0
+
+        # Create another thread to handle inter-process communication (ipc)
+        # ipcThread = threading.Thread(target=self.__communicator)
+        # ipcThread.start()
+        # print("Inter-process communicator deployed")
+        # print("Active threads : ", threading.activeCount())
+
+        # Thread sync structures
+        global SEMAPHORE
+        global SEMAPHORE_LOCK
 
         # Main loop
         while True:
             # Handle exit event
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                        return
+                    return
+
+            # Sync with the communicator
+            # TODO
 
             # Update heatmap...
             self.__update_heatmap()
             # ...and character movement
             self.__update_character()
 
-            # Test randomness
-            for agent in self.__characters:
-                movement = choice(["left", "right", "up", "down"])
-                self.move_agent(agent["id"], movement)
+            # Show the score every second
+            if n_ticks % FPS == 0:
+                score = self.__score
+                for character in self.__characters:
+                    score += character['score']
+                print("tick {}s score {}".format(seconds, score))
+                seconds += 1
 
             pygame.display.flip()
-            clock.tick(FPS)
+            clock.tick(FPS) ; n_ticks += 1
+
+            # Sync with the communicator
+            # TODO
+
+        # Kill communicator
+        # ipcThread.kill() ; ipcThread.join()
+        # if not ipcThread.isAlive():
+        #   print('Communicator was disbanded')

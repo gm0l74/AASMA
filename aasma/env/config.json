@@ -9,5 +9,13 @@
   "yellow-red": "225,300",
   "red-fire": "300,450",
   "fire-yellow": "450,600",
-  "search-cell": 0
+  "search-cell-time": 0,
+  "sc_invalid_pos": -1,
+  "sc_green_detect": 0,
+  "sc_yellow_detect": 3,
+  "sc_red_detect": 1,
+  "sc_green_exist": 0,
+  "sc_yellow_exist": -1,
+  "sc_red_exist": -3,
+  "sc_fire_exist": -10
 }

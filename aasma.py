@@ -4,7 +4,7 @@
 # File : aasma.py
 #
 # @ start date          22 04 2020
-# @ last update         25 04 2020
+# @ last update         01 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -100,16 +100,17 @@ class AgentCommand(Command):
         return 'agent'
 
     def usage(self):
-        return 'aasma agent'
+        return 'aasma agent <type>'
 
     def execute(self, args):
         print("Executing 'aasma agent'...")
         # Error handle the input
-        if len(args) != 0:
+        if len(args) != 1:
             raise ValueError('Incorrect number of args')
 
         # Call another python script
-        _path = ROOT_PATH + '/aasma/agent/run.py'
+        options = ' '.join(args)
+        _path = ROOT_PATH + '/aasma/agent/run.py ' + options
         subprocess.call("python3 \"{}\"".format(_path), shell=True)
 
 #---------------------------------
