@@ -20,8 +20,7 @@ import pygame
 import numpy as np
 from random import randint
 
-import zmq
-from threading import Thread, Lock
+import zmq, threading
 
 #---------------------------------
 # PWD
@@ -74,6 +73,11 @@ HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire', 'yellow')
 FPS = 15 # frames per second (in Hz)
 
 #---------------------------------
+# Thread Syncing
+#---------------------------------
+SEMAPHORE = threading.BoundedSemaphore(1)
+
+#---------------------------------
 # Sprites
 #---------------------------------
 # Filepaths to the sprites themselves
@@ -92,7 +96,7 @@ class Environment:
 
         self.__screen = None
         self.__env_mtrx_repr = []
-        self.__characters = []
+        self.__characters = {}
 
         self.__score = 0
         self.__metrics = {
@@ -369,7 +373,7 @@ class Environment:
     def __draw_and_spawn_character(self):
         cell_size = self.__config['cell_size']
         # Load character sprite
-        character = pygame.transform.scale(
+        character_sprite = pygame.transform.scale(
             pygame.image.load(CHARACTER_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
         )
@@ -391,7 +395,7 @@ class Environment:
 
             # ... and with other characters
             has_character = False
-            for character in self.__characters:
+            for character in self.__characters.values():
                 coll_x, coll_y = character['x'], character['y']
                 has_character = (coll_x == x_mtrx_i) and (coll_y == y_mtrx_i)
                 if has_character:
@@ -408,6 +412,7 @@ class Environment:
         # Character data structure initialization
         if character_id in self.__characters:
             # Really unlikely
+            return 'nack' # TODO
             raise ValueError(
                 'Couldn\'t deploy character {}'.format(character_id)
             )
@@ -420,7 +425,7 @@ class Environment:
             'x_prev': x_mtrx_i, 'y_prev': y_mtrx_i,
             'hm_color': env_pos[0]
         }
-        self.__screen.blit(character, (x + 2, y + 2))
+        self.__screen.blit(character_sprite, (x + 2, y + 2))
 
         return character_id
 
@@ -505,12 +510,12 @@ class Environment:
 
         # Load character sprite
         cell_size = self.__config['cell_size']
-        character = pygame.transform.scale(
+        character_sprite = pygame.transform.scale(
             pygame.image.load(CHARACTER_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
         )
 
-        for character in self.__characters:
+        for character in self.__characters.values():
             # Current position
             x_mtrx_i = character['x']
             y_mtrx_i = character['y']
@@ -541,7 +546,7 @@ class Environment:
 
                 # Draw character on the new cell
                 self.__screen.blit(
-                    character,
+                    character_sprite,
                     (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
                 )
                 character['hm_color'] = hm_color
@@ -559,7 +564,7 @@ class Environment:
 
                     # Redraw character on that same cell
                     self.__screen.blit(
-                        character,
+                        character_sprite,
                         (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
                     )
                 elif character['hm_color'] != hm_color:
@@ -602,8 +607,8 @@ class Environment:
 
         # Create new position
         character = self.__characters[id]
-        new_x_mtrx = mov_guide[action]['x'](character[id]['x'])
-        new_y_mtrx = mov_guide[action]['y'](character[id]['y'])
+        new_x_mtrx = mov_guide[action]['x'](character['x'])
+        new_y_mtrx = mov_guide[action]['y'](character['y'])
 
         # Check if new position is possible
         #  - can't move outside of the world boundaries
@@ -631,32 +636,31 @@ class Environment:
             self.__characters[id]['x'] = new_x_mtrx
             self.__characters[id]['y'] = new_y_mtrx
 
-    # TODO FROM HERE
-    def __communicator(self, semaphore):
+    def __communicator(self):
         # Create the structure for inter-process communication
         socket = zmq.Context().socket(zmq.REP)
         socket.bind("tcp://*:5555")
 
         poller = zmq.Poller()
         poller.register(socket)
-
-        n_threads = 0 # Incremented when a character client is subscribed
+        n_communicator_threads = 0
 
         while True:
-            timeout = 500
-            t_last = time.time()
-
-            while (time.time() - t_last) < timeout:
-                ready = dict(poller.poll(10))
+            # Sync with main thread
+            if SEMAPHORE.acquire(False):
+                # Synced
+                # TODO concatenate obatined intel here
+                pass
+            else:
+                ready = dict(poller.poll(n_communicator_threads))
                 if ready.get(socket):
-                    # Run for some time before sync
-                    message = socket.recv()
+                    message = socket.recv().decode()
                     print("Incoming: {}".format(message))
 
                     # Handle request
                     message = message.split(',')
                     if message[0] == 'create':
-                        n_threads += 1
+                        n_communicator_threads += 1
                         response = self.__draw_and_spawn_character()
                     elif message[0] == 'move':
                         self.__move_character(message[1], message[2])
@@ -666,45 +670,23 @@ class Environment:
 
                     # Send response back to character client
                     socket.send(response.encode())
-                    break
-
-                self.socket.send_multipart(['hello', b''])
-                t_last = time.time()
-
-            if (time.time() - t_last) >= timeout:
-                print("Timed out before recieving a signal to continue")
-
-            # Thread sync
-            global SEMAPHORE
-            global SEMAPHORE_LOCK
-
-            SEMAPHORE_LOCK.acquire()
-            SEMAPHORE -= 1
-            SEMAPHORE_LOCK.release()
 
     def run(self):
         # Start the clock
         clock = pygame.time.Clock() ; n_ticks = 0 ; seconds = 0
 
         # Create another thread to handle inter-process communication (ipc)
-        # ipcThread = threading.Thread(target=self.__communicator)
-        # ipcThread.start()
-        # print("Inter-process communicator deployed")
-        # print("Active threads : ", threading.activeCount())
-
-        # Thread sync structures
-        global SEMAPHORE
-        global SEMAPHORE_LOCK
+        ipcThread = threading.Thread(target=self.__communicator)
+        ipcThread.daemon = True
+        ipcThread.start()
 
         # Main loop
-        while True:
+        RUN_GAME = True
+        while RUN_GAME:
             # Handle exit event
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    return
-
-            # Sync with the communicator
-            # TODO
+                    RUN_GAME = False
 
             # Update heatmap...
             self.__update_heatmap()
@@ -714,18 +696,19 @@ class Environment:
             # Show the score every second
             if n_ticks % FPS == 0:
                 score = self.__score
-                for character in self.__characters:
+                for character in self.__characters.values():
                     score += character['score']
-                print("tick {}s score {}".format(seconds, score))
+                print("-- Tick {}s\tScore {}".format(seconds, score))
                 seconds += 1
 
             pygame.display.flip()
             clock.tick(FPS) ; n_ticks += 1
 
             # Sync with the communicator
-            # TODO
+            try:
+                SEMAPHORE.release()
+            except ValueError:
+                time.sleep(0.05)
 
-        # Kill communicator
-        # ipcThread.kill() ; ipcThread.join()
-        # if not ipcThread.isAlive():
-        #   print('Communicator was disbanded')
+        # Once the main thread is done,
+        # the daemon thread will be killed

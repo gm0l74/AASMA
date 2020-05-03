@@ -27,7 +27,6 @@ if __name__ == '__main__':
     if agent_type not in ('randomness', 'drl'):
         raise ValueError('Invalid agent type')
 
-
     # TODO
     #  Socket to talk to environment communicator
     print("Connecting to communicator...")
