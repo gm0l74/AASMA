@@ -563,7 +563,7 @@ class Environment:
                 self.__characters[id]['curr_search_time'] = 0
             else:
                 hm_color = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
-
+                
                 # Check if heatmap cell color can be updated
                 if curr_search_time >= self.__config['search-cell-time']:
                     # Update character score
@@ -650,8 +650,10 @@ class Environment:
         # Avoid character collision
         for other_character in self.__characters.values():
             if other_character['id'] != id:
-                # TODO
-                if other_character['x'] == new_x_mtrx and other_character['y'] == new_y_mtrx:
+                if (
+                    other_character['x'] == new_x_mtrx and \
+                    other_character['y'] == new_y_mtrx
+                ):
                     is_position_valid = False
 
         # If the new position is not possible...
@@ -672,6 +674,11 @@ class Environment:
     def __communicator(self):
         # Create the structure for inter-process communication
         socket = zmq.Context().socket(zmq.REP)
+
+        socket.setsockopt(zmq.LINGER, 0)
+        socket.setsockopt(zmq.AFFINITY, 1)
+        socket.setsockopt(zmq.RCVTIMEO, 1/FPS) # timeout
+
         socket.bind("tcp://*:5555")
 
         poller = zmq.Poller()
@@ -716,7 +723,7 @@ class Environment:
         # Create another thread to handle inter-process communication (ipc)
         ipcThread = threading.Thread(target=self.__communicator)
 
-        # Set ipc to daemon
+        # Set ipc to daemon thread
         # Once the main thread is done, the daemon thread will be killed
         ipcThread.daemon = True
         ipcThread.start()

@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     ipc.setsockopt(zmq.LINGER, 0)
     ipc.setsockopt(zmq.AFFINITY, 1)
-    ipc.setsockopt(zmq.RCVTIMEO, 3000) # 2 seconds timeout
+    ipc.setsockopt(zmq.RCVTIMEO, 3000) # 3 seconds timeout
 
     ipc.connect("tcp://localhost:5555")
 
