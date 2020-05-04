@@ -499,7 +499,7 @@ class Environment:
         )
 
         # Place the heatmap tile in the screen without the drone sprite
-        self.__draw_heatmap_tile(y, x, color)
+        self.__draw_heatmap_tile(y  * cell_size, x  * cell_size, color)
 
         if color == 'fire':
             self.__screen.blit(
@@ -526,10 +526,11 @@ class Environment:
             y_prev_mtrx_i = character['y_prev']
 
             curr_search_time = character['curr_search_time']
-            hm_color = self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i][0]
 
             # Check if a character has moved
             if (x_mtrx_i != x_prev_mtrx_i) or (y_mtrx_i != y_prev_mtrx_i):
+                hm_color = self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i][0]
+
                 # Check if heatmap cell color can be updated
                 if curr_search_time > self.__config['search-cell-time']:
                     # Update character score TODO
@@ -552,12 +553,15 @@ class Environment:
                 )
                 character['hm_color'] = hm_color
             else:
+                hm_color = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
+
                 # Check if heatmap cell color can be updated
                 if curr_search_time > self.__config['search-cell-time']:
                     # Update character score TODO
                     character['score'] += \
                         self.__config['sc_' + hm_color + '_detect']
 
+                    print("FUCK MY LIFE")
                     # Character has searched the area. Now it's green!
                     self.__redraw_re_updated_heatmap_tile(
                         y_mtrx_i, x_mtrx_i, 'green'
@@ -568,6 +572,7 @@ class Environment:
                         character_sprite,
                         (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
                     )
+                    character['hm_color'] = 'green'
                 elif character['hm_color'] != hm_color:
                     # Redraw character on that same cell
                     self.__screen.blit(
@@ -668,13 +673,16 @@ class Environment:
                     message = message.split(',')
                     if message[0] == 'create':
                         n_character_threads += 1
-                        CHARACTER_ACCESS.acquire()
+                        #CHARACTER_ACCESS.acquire()
                         response = self.__draw_and_spawn_character()
-                        CHARACTER_ACCESS.release()
+                        #CHARACTER_ACCESS.release()
                     elif message[0] == 'move':
-                        CHARACTER_ACCESS.acquire()
-                        self.__move_character(message[1], message[2])
-                        CHARACTER_ACCESS.release()
+                        #CHARACTER_ACCESS.acquire()
+                        try:
+                            self.__move_character(message[1], message[2])
+                        except:
+                            pass
+                        #CHARACTER_ACCESS.release()
                         response = 'ok'
                     else:
                         raise ValueError('Couldn\'t handle message')
@@ -707,9 +715,9 @@ class Environment:
             # Update heatmap...
             self.__update_heatmap()
             # ...and character movement
-            CHARACTER_ACCESS.acquire()
+            #CHARACTER_ACCESS.acquire()
             self.__update_character()
-            CHARACTER_ACCESS.release()
+            #CHARACTER_ACCESS.release()
 
             # Show the score every second
             if n_ticks % FPS == 0:
@@ -729,7 +737,7 @@ class Environment:
                 time.sleep(1/FPS)
 
         # Display metrics
-        print(" --- Metrics ---")
+        print("\n--- Metrics ---")
         for k, v in self.__metrics.items():
             print("{} - {}".format(k, v))
-        print(" ---------------")
+        print("---------------")

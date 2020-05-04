@@ -11,14 +11,14 @@
 # Imports
 #---------------------------------
 import numpy as np
-from AgentModel import AgentModel
+from aasma.agent.models.AgentModel import AgentModel
 
 #---------------------------------
 # class Randomness
 #---------------------------------
 class Randomness(AgentModel):
     def __init__(self, actions):
-        super(DeepReinforcementLearning, self).__init__()
+        super(Randomness, self).__init__(actions)
 
     def perceive(self, snapshot):
         pass

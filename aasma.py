@@ -4,7 +4,7 @@
 # File : aasma.py
 #
 # @ start date          22 04 2020
-# @ last update         01 05 2020
+# @ last update         04 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -110,8 +110,11 @@ class AgentCommand(Command):
 
         # Call another python script
         options = ' '.join(args)
-        _path = ROOT_PATH + '/aasma/agent/run.py ' + options
-        subprocess.call("python3 \"{}\"".format(_path), shell=True)
+        _path = ROOT_PATH + '/aasma/agent/agent.py'
+        subprocess.call(
+            "python3 \"{}\" {}".format(_path, options),
+            shell=True
+        )
 
 #---------------------------------
 # function process_command
