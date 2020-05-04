@@ -44,7 +44,14 @@ To deploy an angent, open a new terminal and run:
 aasma agent <type>
 ```
 
-**<type> can be one of 'randomness' or 'drl'**
+**Type can be one of 'randomness' or 'drl'**
+Like so,
+```console
+aasma agent randomness
+aasma agent drl
+```
+
+You can spawn as many agents as you want!
 
 Randomness doesn't use any kind of deep learning, in fact, it just chooses a random action.
 DRL, however, has a neural net which receives an image as input.
