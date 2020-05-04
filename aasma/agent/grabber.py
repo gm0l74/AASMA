@@ -19,7 +19,7 @@ import time
 # function: snapshot
 #---------------------------------
 def snapshot():
-    screen = np.array(ImageGrab.grab(bbox=(0,40,600,600)))
+    screen = np.array(ImageGrab.grab(bbox=(0,40,600,630)))
     return screen
 
 #---------------------------------

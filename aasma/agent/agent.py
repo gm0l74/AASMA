@@ -24,7 +24,7 @@ import aasma.agent.models.randomness as randomness
 # Constants
 #---------------------------------
 # Environment engine configuration
-FPS = 15 # frames per second (in Hz)
+FPS = 7 # frames per second (in Hz)
 
 DELAY = 1/FPS
 
@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     ipc.setsockopt(zmq.LINGER, 0)
     ipc.setsockopt(zmq.AFFINITY, 1)
-    ipc.setsockopt(zmq.RCVTIMEO, 2000) # 2 seconds timeout
+    ipc.setsockopt(zmq.RCVTIMEO, 3000) # 2 seconds timeout
 
     ipc.connect("tcp://localhost:5555")
 
@@ -78,7 +78,7 @@ if __name__ == '__main__':
         try:
             # Perceive
             screen = grabber.snapshot()
-            plt.imshow(screen) ; plt.show()
+            #plt.imshow(screen) ; plt.show() # debug
             agent.perceive(screen)
 
             # Reason on some action

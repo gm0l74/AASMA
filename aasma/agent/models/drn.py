@@ -23,6 +23,7 @@ class DeepReinforcementLearning(AgentModel):
         super(DeepReinforcementLearning, self).__init__(actions)
 
     def perceive(self, snapshot):
+        # TODO
         return
 
     def make_action(self):

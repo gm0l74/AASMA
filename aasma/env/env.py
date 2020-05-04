@@ -33,7 +33,6 @@ PATH = PATH[:len(PATH) - 6]
 # Thread Syncing
 #---------------------------------
 SEMAPHORE = threading.BoundedSemaphore(1)
-CHARACTER_ACCESS = threading.Lock()
 
 #---------------------------------
 # Constants
@@ -76,7 +75,7 @@ HEATMAP_COLORS = {
 HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire', 'yellow')
 
 # Environment engine configuration
-FPS = 15 # frames per second (in Hz)
+FPS = 7 # frames per second (in Hz)
 
 #---------------------------------
 # Sprites
@@ -506,7 +505,7 @@ class Environment:
                 fire_sprite, (x * cell_size + 2, y * cell_size + 2)
             )
 
-    def __update_character(self):
+    def __update_character(self, characters):
         cell_size = self.__config['cell_size']
         time_to_reset_cell = self.__config['search-cell-time']
 
@@ -516,7 +515,7 @@ class Environment:
             (cell_size - 2, cell_size - 2)
         )
 
-        for character in self.__characters.values():
+        for id, character in characters.items():
             # Current position
             x_mtrx_i = character['x']
             y_mtrx_i = character['y']
@@ -532,15 +531,24 @@ class Environment:
                 hm_color = self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i][0]
 
                 # Check if heatmap cell color can be updated
-                if curr_search_time > self.__config['search-cell-time']:
-                    # Update character score TODO
-                    character['score'] += \
-                        self.__config['sc_' + hm_color + '_detect']
+                if curr_search_time >= self.__config['search-cell-time']:
+                    # Update character score
+                    try:
+                        self.__characters[id]['score'] += \
+                            self.__config['sc_' + hm_color + '_detect']
+                    except:
+                        self.__characters[id]['score'] += self.__config['sc_invalid_pos']
 
                     # Character has searched the area. Now it's green!
                     self.__redraw_re_updated_heatmap_tile(
                         y_prev_mtrx_i, x_prev_mtrx_i, 'green'
                     )
+                    self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i] = [
+                        'green',
+                        randint(*self.__config[
+                            'green-' + self.__get_next_evolution_color('green')
+                        ])
+                    ]
                 else:
                     self.__redraw_re_updated_heatmap_tile(
                         y_prev_mtrx_i, x_prev_mtrx_i, hm_color
@@ -551,37 +559,46 @@ class Environment:
                     character_sprite,
                     (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
                 )
-                character['hm_color'] = hm_color
+                self.__characters[id]['hm_color'] = hm_color
+                self.__characters[id]['curr_search_time'] = 0
             else:
                 hm_color = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
 
                 # Check if heatmap cell color can be updated
-                if curr_search_time > self.__config['search-cell-time']:
-                    # Update character score TODO
-                    character['score'] += \
-                        self.__config['sc_' + hm_color + '_detect']
+                if curr_search_time >= self.__config['search-cell-time']:
+                    # Update character score
+                    try:
+                        self.__characters[id]['score'] += \
+                            self.__config['sc_' + hm_color + '_detect']
+                    except:
+                        self.__characters[id]['score'] += self.__config['sc_invalid_pos']
 
-                    print("FUCK MY LIFE")
                     # Character has searched the area. Now it's green!
                     self.__redraw_re_updated_heatmap_tile(
                         y_mtrx_i, x_mtrx_i, 'green'
                     )
+                    self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i] = [
+                        'green',
+                        randint(*self.__config[
+                            'green-' + self.__get_next_evolution_color('green')
+                        ])
+                    ]
 
                     # Redraw character on that same cell
                     self.__screen.blit(
                         character_sprite,
                         (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
                     )
-                    character['hm_color'] = 'green'
+                    self.__characters[id]['hm_color'] = 'green'
                 elif character['hm_color'] != hm_color:
                     # Redraw character on that same cell
                     self.__screen.blit(
-                        character,
+                        character_sprite,
                         (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
                     )
-                    character['hm_color'] = hm_color
+                    self.__characters[id]['hm_color'] = hm_color
 
-                character['curr_search_time'] += 1
+                self.__characters[id]['curr_search_time'] += 1
 
     def __move_character(self, id, action):
         # Movement guide for each action and each axis
@@ -630,6 +647,13 @@ class Environment:
         if color in ('mountain', 'fire'):
             is_position_valid = False
 
+        # Avoid character collision
+        for other_character in self.__characters.values():
+            if other_character['id'] != id:
+                # TODO
+                if other_character['x'] == new_x_mtrx and other_character['y'] == new_y_mtrx:
+                    is_position_valid = False
+
         # If the new position is not possible...
         # the character returns to the original position
         # and a penalty is added to the score
@@ -654,14 +678,11 @@ class Environment:
         poller.register(socket)
         n_character_threads = 0
 
-        # Relay structure
-        relay_characters = copy.deepcopy(self.__characters)
-
         while True:
             # Sync with main thread
             if SEMAPHORE.acquire(False):
                 # Sync threads and update character intelligence structure
-                self.__characters = copy.deepcopy(relay_characters)
+                pass
             else:
                 ready = dict(poller.poll(n_character_threads))
                 if ready.get(socket):
@@ -673,16 +694,12 @@ class Environment:
                     message = message.split(',')
                     if message[0] == 'create':
                         n_character_threads += 1
-                        #CHARACTER_ACCESS.acquire()
                         response = self.__draw_and_spawn_character()
-                        #CHARACTER_ACCESS.release()
                     elif message[0] == 'move':
-                        #CHARACTER_ACCESS.acquire()
                         try:
                             self.__move_character(message[1], message[2])
                         except:
                             pass
-                        #CHARACTER_ACCESS.release()
                         response = 'ok'
                     else:
                         raise ValueError('Couldn\'t handle message')
@@ -706,6 +723,8 @@ class Environment:
 
         # Main loop
         RUN_GAME = True
+
+        characters_relay = copy.deepcopy(self.__characters)
         while RUN_GAME:
             # Handle exit event
             for event in pygame.event.get():
@@ -715,9 +734,7 @@ class Environment:
             # Update heatmap...
             self.__update_heatmap()
             # ...and character movement
-            #CHARACTER_ACCESS.acquire()
-            self.__update_character()
-            #CHARACTER_ACCESS.release()
+            self.__update_character(characters_relay)
 
             # Show the score every second
             if n_ticks % FPS == 0:
@@ -733,6 +750,7 @@ class Environment:
             # Sync with the communicator
             try:
                 SEMAPHORE.release()
+                characters_relay = copy.deepcopy(self.__characters)
             except ValueError:
                 time.sleep(1/FPS)
 
