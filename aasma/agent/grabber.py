@@ -19,8 +19,8 @@ import time
 # function: snapshot
 #---------------------------------
 def snapshot():
-    screen = np.array(ImageGrab.grab(bbox=(0,40,600,600))) # TODO
-    return cv2.cvtColor(screen, cv2.COLOR_BGR2RGB)
+    screen = np.array(ImageGrab.grab(bbox=(0,40,600,600)))
+    return screen
 
 #---------------------------------
 # Execute
@@ -28,9 +28,10 @@ def snapshot():
 if __name__ == '__main__':
     last_time = time.time()
     while True:
-        img = snapshot()
+        img = cv2.cvtColor(snapshot(), cv2.COLOR_BGR2RGB)
 
         print("Loop took {} seconds".format(time.time() - last_time))
+        last_time = time.time()
         cv2.imshow('window', img)
 
         if cv2.waitKey(25) & 0xFF == ord('q'):

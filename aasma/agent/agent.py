@@ -12,8 +12,10 @@
 #---------------------------------
 import sys
 import zmq, time
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
-import aasma.agent.grabber
+import aasma.agent.grabber as grabber
 
 import aasma.agent.models.drn as drn
 import aasma.agent.models.randomness as randomness
@@ -75,7 +77,9 @@ if __name__ == '__main__':
     while True:
         try:
             # Perceive
-            # agent.perceive(grabber.snapshot())
+            screen = grabber.snapshot()
+            plt.imshow(screen) ; plt.show()
+            agent.perceive(screen)
 
             # Reason on some action
             action = agent.make_action()

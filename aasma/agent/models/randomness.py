@@ -21,7 +21,7 @@ class Randomness(AgentModel):
         super(Randomness, self).__init__(actions)
 
     def perceive(self, snapshot):
-        pass
+        return
 
     def make_action(self):
         return np.random.choice(self.actions)
