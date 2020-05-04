@@ -44,7 +44,7 @@ To deploy an angent, open a new terminal and run:
 aasma agent <type>
 ```
 
-**Type can be one of 'randomness' or 'drl'**
+**Type can be one of 'randomness' or 'drl'.**<br />
 Like so,
 ```console
 aasma agent randomness
