@@ -13,7 +13,6 @@
 import sys
 import zmq, time
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 
 import aasma.agent.grabber as grabber
 
@@ -24,7 +23,7 @@ import aasma.agent.models.randomness as randomness
 # Constants
 #---------------------------------
 # Environment engine configuration
-FPS = 7 # frames per second (in Hz)
+FPS = 15 # frames per second (in Hz)
 
 DELAY = 1/FPS
 

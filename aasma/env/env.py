@@ -75,7 +75,7 @@ HEATMAP_COLORS = {
 HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire', 'yellow')
 
 # Environment engine configuration
-FPS = 7 # frames per second (in Hz)
+FPS = 15 # frames per second (in Hz)
 
 #---------------------------------
 # Sprites
@@ -98,6 +98,7 @@ class Environment:
         self.__screen = None
         self.__env_mtrx_repr = []
         self.__characters = {}
+        self.__moved = {}
 
         # Score system
         self.__score = 0
@@ -324,6 +325,9 @@ class Environment:
         if y == 0:
             return True
 
+        if (x == 0) or (x == self.__WINDOW_WIDTH//self.__config['cell_size'] - 1):
+            return False
+
         # Layouts which are avoided by this algorithm
         # (All off the situations are evaluated at the positions with
         # greater value of y and x)
@@ -543,7 +547,7 @@ class Environment:
                     self.__redraw_re_updated_heatmap_tile(
                         y_prev_mtrx_i, x_prev_mtrx_i, 'green'
                     )
-                    self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i] = [
+                    self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i] = [
                         'green',
                         randint(*self.__config[
                             'green-' + self.__get_next_evolution_color('green')
@@ -563,7 +567,7 @@ class Environment:
                 self.__characters[id]['curr_search_time'] = 0
             else:
                 hm_color = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
-                
+
                 # Check if heatmap cell color can be updated
                 if curr_search_time >= self.__config['search-cell-time']:
                     # Update character score
@@ -677,7 +681,7 @@ class Environment:
 
         socket.setsockopt(zmq.LINGER, 0)
         socket.setsockopt(zmq.AFFINITY, 1)
-        socket.setsockopt(zmq.RCVTIMEO, 1/FPS) # timeout
+        socket.setsockopt(zmq.RCVTIMEO, 250) # timeout
 
         socket.bind("tcp://*:5555")
 
@@ -695,7 +699,7 @@ class Environment:
                 if ready.get(socket):
                     # Receive transmission from character client
                     message = socket.recv().decode()
-                    print(" <-- {}".format(message))
+                    # print(" <-- {}".format(message)) # debug incoming
 
                     # Handle request
                     message = message.split(',')
@@ -705,6 +709,7 @@ class Environment:
                     elif message[0] == 'move':
                         try:
                             self.__move_character(message[1], message[2])
+                            self.__moved[message[1]] = True
                         except:
                             pass
                         response = 'ok'
@@ -713,7 +718,7 @@ class Environment:
 
                     # Send response back to character client
                     socket.send(response.encode())
-                    print(" --> {}".format(response))
+                    # print(" --> {}".format(response)) # debug outgoing
 
     def run(self):
         # Start the engine clock and temporal variables
@@ -758,6 +763,14 @@ class Environment:
             try:
                 SEMAPHORE.release()
                 characters_relay = copy.deepcopy(self.__characters)
+                for key in self.__characters.keys():
+                    try:
+                        if not self.__moved[key]:
+                            self.__move_character(key, 'stay')
+
+                        self.__moved[key] = False
+                    except:
+                        pass
             except ValueError:
                 time.sleep(1/FPS)
 
