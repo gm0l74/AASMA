@@ -4,7 +4,7 @@
 # File : randomness.py
 #
 # @ start date          02 05 2020
-# @ last update         02 05 2020
+# @ last update         04 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -18,13 +18,10 @@ from AgentModel import AgentModel
 #---------------------------------
 class Randomness(AgentModel):
     def __init__(self, actions):
-        if (not isinstance(actions, (list, tuple))) or len(actions) == 0:
-            raise ValueError('Invalid set of actions')
+        super(DeepReinforcementLearning, self).__init__()
 
-        self.__actions = actions
-
-    def perceive(self):
+    def perceive(self, snapshot):
         pass
 
     def make_action(self):
-        return np.random.choice(actions)
+        return np.random.choice(self.actions)

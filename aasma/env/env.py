@@ -10,7 +10,7 @@
 #---------------------------------
 # Imports
 #---------------------------------
-import os, re, json
+import os, re, json, copy
 import hashlib
 
 import time
@@ -28,6 +28,12 @@ import zmq, threading
 PATH = os.path.realpath(__file__)
 # Remove filename
 PATH = PATH[:len(PATH) - 6]
+
+#---------------------------------
+# Thread Syncing
+#---------------------------------
+SEMAPHORE = threading.BoundedSemaphore(1)
+CHARACTER_ACCESS = threading.Lock()
 
 #---------------------------------
 # Constants
@@ -73,11 +79,6 @@ HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire', 'yellow')
 FPS = 15 # frames per second (in Hz)
 
 #---------------------------------
-# Thread Syncing
-#---------------------------------
-SEMAPHORE = threading.BoundedSemaphore(1)
-
-#---------------------------------
 # Sprites
 #---------------------------------
 # Filepaths to the sprites themselves
@@ -94,22 +95,27 @@ class Environment:
         # Load configuration for an environment
         self.__config = self.__parse_config(config_file)
 
+        # Environment operation
         self.__screen = None
         self.__env_mtrx_repr = []
         self.__characters = {}
 
+        # Score system
         self.__score = 0
         self.__metrics = {
-            'n_fire': 0,
-            'n_red': 0,
+            'n_green': 0,
             'n_yellow': 0,
-            'n_green': 0
+            'n_red': 0,
+            'n_fire': 0
         }
 
         # Build the environment
         # (heatmap gridworld with heat signatures and biome elements)
         self.__build()
 
+    #------------------------------------------------------------------
+    # Configuration
+    #------------------------------------------------------------------
     def __parse_config(self, filename):
         if not re.search('.*\.json', filename):
             raise ValueError('Config must be a .json file')
@@ -179,8 +185,7 @@ class Environment:
                     is_valid = False
             elif data_type == 'int':
                 try:
-                    int(value) # As long as this holds, is valid
-                    is_valid = True
+                    int(value) ; is_valid = True
                 except:
                     is_valid = False
             elif data_type == 'int0':
@@ -203,6 +208,9 @@ class Environment:
 
         return is_valid, f_transform
 
+    #------------------------------------------------------------------
+    # Environment build and character spawning
+    #------------------------------------------------------------------
     def __build(self):
         pygame.init()
         # Basic window configuration
@@ -220,7 +228,7 @@ class Environment:
     def __draw_and_spawn_environment(self):
         cell_size = self.__config['cell_size']
         # Load required sprites for later use
-        mountain = pygame.transform.scale(
+        mountain_sprite = pygame.transform.scale(
             pygame.image.load(MOUNTAIN_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
         )
@@ -231,7 +239,7 @@ class Environment:
 
         # Init the heat map
         # Use the heatmap heat signature probabilities
-        # provided in config.json
+        # provided in config.json (held in self.__config)
 
         # Heat signature probability distribution
         p_distribution = np.array([
@@ -261,15 +269,7 @@ class Environment:
                         )
 
                 # Create a heatmap tile ((cell_size-4) * (cell_size-4))
-                # and place it in the environment
-                pygame.draw.rect(
-                    self.__screen, HEATMAP_COLORS[color],
-                    pygame.Rect(
-                        x + 2, y + 2,
-                        cell_size - 2, cell_size - 2
-                    ),
-                    0 # 0 = fill cell
-                )
+                self.__draw_heatmap_tile(y, x, color)
 
                 # Add cell to environment matrix representation
                 # cell = [color, time step]
@@ -286,7 +286,7 @@ class Environment:
                 # Fires don't exist in the beginning
                 # Characters are not spawned here
                 if color == 'mountain':
-                    self.__screen.blit(mountain, (x + 2, y + 2))
+                    self.__screen.blit(mountain_sprite, (x + 2, y + 2))
                 else:
                     # Update score
                     self.__score += self.__config['sc_' + color + '_exist']
@@ -294,6 +294,20 @@ class Environment:
 
             # Add entire row to the matrix representation
             self.__env_mtrx_repr.append(row_repr)
+
+    def __draw_heatmap_tile(self, y, x, color):
+        cell_size = self.__config['cell_size']
+
+        # Create a heatmap tile ((cell_size-4) * (cell_size-4))
+        # and place it in the environment
+        pygame.draw.rect(
+            self.__screen, HEATMAP_COLORS[color],
+            pygame.Rect(
+                x + 2, y + 2,
+                cell_size - 2, cell_size - 2
+            ),
+            0 # 0 = fill cell
+        )
 
     def __get_next_evolution_color(self, color):
         try:
@@ -412,10 +426,8 @@ class Environment:
         # Character data structure initialization
         if character_id in self.__characters:
             # Really unlikely
-            return 'nack' # TODO
-            raise ValueError(
-                'Couldn\'t deploy character {}'.format(character_id)
-            )
+            print('Couldn\'t deploy character {}'.format(character_id))
+            return 'nack'
 
         self.__characters[character_id] = {
             'id': character_id,
@@ -429,11 +441,14 @@ class Environment:
 
         return character_id
 
+    #------------------------------------------------------------------
+    # Environment and character updates
+    #------------------------------------------------------------------
     def __update_heatmap(self):
         cell_size = self.__config['cell_size']
+
         # Load the fire sprite once throughout this update
-        # (maybe needed, maybe not)
-        fire = pygame.transform.scale(
+        fire_sprite = pygame.transform.scale(
             pygame.image.load(FIRE_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
         )
@@ -451,21 +466,14 @@ class Environment:
                     color = self.__get_next_evolution_color(color)
 
                     # Place the new heatmap tile in the screen
-                    pygame.draw.rect(
-                        self.__screen, HEATMAP_COLORS[color],
-                        pygame.Rect(
-                            x + 2, y + 2,
-                            cell_size - 2, cell_size - 2
-                        ),
-                        0 # 0 = fill cell
-                    )
+                    self.__draw_heatmap_tile(y, x, color)
 
                     # Update score
                     self.__score += self.__config['sc_' + color + '_exist']
                     self.__metrics['n_' + color] += 1
 
                     if color == 'fire':
-                        self.__screen.blit(fire, (x + 2, y + 2))
+                        self.__screen.blit(fire_sprite, (x + 2, y + 2))
 
                     # Get the next color to be displayed
                     # (when time step resets)
@@ -480,36 +488,29 @@ class Environment:
                     # Passage passage of time
                     self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][1] -= 1
 
-    def __redraw_re_updated_heatmap_cell(self, y, x, color):
+    def __redraw_re_updated_heatmap_tile(self, y, x, color):
         # Used in '__update_character' which happens after '__update_heatmap'
         cell_size = self.__config['cell_size']
 
         # Load the fire sprite
-        # (maybe needed, maybe not)
-        fire = pygame.transform.scale(
+        fire_sprite = pygame.transform.scale(
             pygame.image.load(FIRE_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
         )
 
         # Place the heatmap tile in the screen without the drone sprite
-        pygame.draw.rect(
-            self.__screen, HEATMAP_COLORS[color],
-            pygame.Rect(
-                x*cell_size + 2, y*cell_size + 2,
-                cell_size - 2, cell_size - 2
-            ),
-            0 # 0 = fill cell
-        )
+        self.__draw_heatmap_tile(y, x, color)
 
         if color == 'fire':
-            self.__screen.blit(fire, (x*cell_size + 2, y*cell_size + 2))
+            self.__screen.blit(
+                fire_sprite, (x * cell_size + 2, y * cell_size + 2)
+            )
 
     def __update_character(self):
         cell_size = self.__config['cell_size']
         time_to_reset_cell = self.__config['search-cell-time']
 
         # Load character sprite
-        cell_size = self.__config['cell_size']
         character_sprite = pygame.transform.scale(
             pygame.image.load(CHARACTER_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
@@ -524,23 +525,23 @@ class Environment:
             x_prev_mtrx_i = character['x_prev']
             y_prev_mtrx_i = character['y_prev']
 
-            search_time = character['curr_search_time']
+            curr_search_time = character['curr_search_time']
             hm_color = self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i][0]
 
             # Check if a character has moved
             if (x_mtrx_i != x_prev_mtrx_i) or (y_mtrx_i != y_prev_mtrx_i):
                 # Check if heatmap cell color can be updated
-                if search_time > self.__config['search-cell-time']:
-                    # Update character score
+                if curr_search_time > self.__config['search-cell-time']:
+                    # Update character score TODO
                     character['score'] += \
                         self.__config['sc_' + hm_color + '_detect']
 
                     # Character has searched the area. Now it's green!
-                    self.__redraw_re_updated_heatmap_cell(
+                    self.__redraw_re_updated_heatmap_tile(
                         y_prev_mtrx_i, x_prev_mtrx_i, 'green'
                     )
                 else:
-                    self.__redraw_re_updated_heatmap_cell(
+                    self.__redraw_re_updated_heatmap_tile(
                         y_prev_mtrx_i, x_prev_mtrx_i, hm_color
                     )
 
@@ -552,13 +553,13 @@ class Environment:
                 character['hm_color'] = hm_color
             else:
                 # Check if heatmap cell color can be updated
-                if search_time > self.__config['search-cell-time']:
-                    # Update character score
+                if curr_search_time > self.__config['search-cell-time']:
+                    # Update character score TODO
                     character['score'] += \
                         self.__config['sc_' + hm_color + '_detect']
 
                     # Character has searched the area. Now it's green!
-                    self.__redraw_re_updated_heatmap_cell(
+                    self.__redraw_re_updated_heatmap_tile(
                         y_mtrx_i, x_mtrx_i, 'green'
                     )
 
@@ -636,6 +637,9 @@ class Environment:
             self.__characters[id]['x'] = new_x_mtrx
             self.__characters[id]['y'] = new_y_mtrx
 
+    #------------------------------------------------------------------
+    # Environment execution and threading
+    #------------------------------------------------------------------
     def __communicator(self):
         # Create the structure for inter-process communication
         socket = zmq.Context().socket(zmq.REP)
@@ -643,40 +647,52 @@ class Environment:
 
         poller = zmq.Poller()
         poller.register(socket)
-        n_communicator_threads = 0
+        n_character_threads = 0
+
+        # Relay structure
+        relay_characters = copy.deepcopy(self.__characters)
 
         while True:
             # Sync with main thread
             if SEMAPHORE.acquire(False):
-                # Synced
-                # TODO concatenate obatined intel here
-                pass
+                # Sync threads and update character intelligence structure
+                self.__characters = copy.deepcopy(relay_characters)
             else:
-                ready = dict(poller.poll(n_communicator_threads))
+                ready = dict(poller.poll(n_character_threads))
                 if ready.get(socket):
+                    # Receive transmission from character client
                     message = socket.recv().decode()
-                    print("Incoming: {}".format(message))
+                    print(" <-- {}".format(message))
 
                     # Handle request
                     message = message.split(',')
                     if message[0] == 'create':
-                        n_communicator_threads += 1
+                        n_character_threads += 1
+                        CHARACTER_ACCESS.acquire()
                         response = self.__draw_and_spawn_character()
+                        CHARACTER_ACCESS.release()
                     elif message[0] == 'move':
+                        CHARACTER_ACCESS.acquire()
                         self.__move_character(message[1], message[2])
+                        CHARACTER_ACCESS.release()
                         response = 'ok'
                     else:
                         raise ValueError('Couldn\'t handle message')
 
                     # Send response back to character client
                     socket.send(response.encode())
+                    print(" --> {}".format(response))
 
     def run(self):
-        # Start the clock
-        clock = pygame.time.Clock() ; n_ticks = 0 ; seconds = 0
+        # Start the engine clock and temporal variables
+        clock = pygame.time.Clock() ; n_ticks = 0
+        t_seconds = 0
 
         # Create another thread to handle inter-process communication (ipc)
         ipcThread = threading.Thread(target=self.__communicator)
+
+        # Set ipc to daemon
+        # Once the main thread is done, the daemon thread will be killed
         ipcThread.daemon = True
         ipcThread.start()
 
@@ -691,15 +707,17 @@ class Environment:
             # Update heatmap...
             self.__update_heatmap()
             # ...and character movement
+            CHARACTER_ACCESS.acquire()
             self.__update_character()
+            CHARACTER_ACCESS.release()
 
             # Show the score every second
             if n_ticks % FPS == 0:
                 score = self.__score
                 for character in self.__characters.values():
                     score += character['score']
-                print("-- Tick {}s\tScore {}".format(seconds, score))
-                seconds += 1
+                print("-- Tick {}s\tScore {}".format(t_seconds, score))
+                t_seconds += 1
 
             pygame.display.flip()
             clock.tick(FPS) ; n_ticks += 1
@@ -708,7 +726,10 @@ class Environment:
             try:
                 SEMAPHORE.release()
             except ValueError:
-                time.sleep(0.05)
+                time.sleep(1/FPS)
 
-        # Once the main thread is done,
-        # the daemon thread will be killed
+        # Display metrics
+        print(" --- Metrics ---")
+        for k, v in self.__metrics.items():
+            print("{} - {}".format(k, v))
+        print(" ---------------")
