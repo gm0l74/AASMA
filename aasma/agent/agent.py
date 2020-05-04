@@ -43,6 +43,11 @@ if __name__ == '__main__':
     #  Connect to environment communicator
     print("Connecting to communicator...")
     ipc = zmq.Context().socket(zmq.REQ)
+
+    ipc.setsockopt(zmq.LINGER, 0)
+    ipc.setsockopt(zmq.AFFINITY, 1)
+    ipc.setsockopt(zmq.RCVTIMEO, 2000) # 2 seconds timeout
+
     ipc.connect("tcp://localhost:5555")
 
     # Send spawn notification
@@ -50,7 +55,12 @@ if __name__ == '__main__':
     ipc.send(b"create")
 
     # Error handle the response
-    agent_id = ipc.recv().decode()
+    try:
+        agent_id = ipc.recv().decode()
+    except:
+        print("Unable to connect to environment")
+        exit()
+
     if agent_id == 'nack':
         raise ValueError("Couldn't spawn agent")
 
@@ -65,7 +75,7 @@ if __name__ == '__main__':
     while True:
         try:
             # Perceive
-            #agent.perceive(grabber.snapshot())
+            # agent.perceive(grabber.snapshot())
 
             # Reason on some action
             action = agent.make_action()
@@ -76,7 +86,11 @@ if __name__ == '__main__':
             ipc.send(query.encode())
 
             #  ... and get the response
-            response = ipc.recv().decode()
+            try:
+                response = ipc.recv().decode()
+            except:
+                print("Environment has been disconnected")
+                raise ValueError('Disconnected')
             print("Received {}".format(response))
 
             time.sleep(DELAY)
