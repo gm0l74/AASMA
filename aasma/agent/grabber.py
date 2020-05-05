@@ -16,22 +16,25 @@ import numpy as np
 import cv2, time
 
 #---------------------------------
+# Foreplay
+#---------------------------------
+env_win = gw.getWindowsWithTitle('AASMA Environment')
+if len(env_win) != 1:
+    raise ValueError("Environment doesn't exist or isn't unique")
+
+env_win = env_win[0]
+# Focus window
+env_win.activate()
+# Move window to standard position
+env_win.moveTo(0, 0)
+
+ENV_WIDTH, ENV_HEIGHT = env_win.size
+
+#---------------------------------
 # function: snapshot
 #---------------------------------
 def snapshot():
-    env_window = gw.getWindowsWithTitle('AASMA Environment')
-    if len(env_window) != 1:
-        raise ValueError('Environment doesn\'t exist or isn\'t unique')
-
-    env_window = env_window[0]
-    # Focus window
-    env_window.activate()
-    # Move window to standard position
-    env_window.moveTo(0, 0)
-
-    env_width, env_height = env_window.size
-
-    screen = np.array(ImageGrab.grab(bbox=(0, 0, env_width, env_height)))
+    screen = np.array(ImageGrab.grab(bbox=(0, 0, ENV_WIDTH, ENV_HEIGHT)))
     return screen
 
 #---------------------------------
