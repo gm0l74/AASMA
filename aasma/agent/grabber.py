@@ -34,7 +34,9 @@ ENV_WIDTH, ENV_HEIGHT = env_win.size
 # function: snapshot
 #---------------------------------
 def snapshot():
-    screen = np.array(ImageGrab.grab(bbox=(0, 0, ENV_WIDTH, ENV_HEIGHT)))
+    screen = np.array(ImageGrab.grab(
+        bbox=(8, 31, ENV_WIDTH - 8, ENV_HEIGHT - 8)
+    ))
     return screen
 
 #---------------------------------
@@ -47,7 +49,7 @@ if __name__ == '__main__':
 
         print("Loop took {} seconds".format(time.time() - last_time))
         last_time = time.time()
-        cv2.imshow('window', img)
+        cv2.imshow('Neural Net Input Feed', img)
 
         if cv2.waitKey(25) & 0xFF == ord('q'):
             cv2.destroyAllWindows()
