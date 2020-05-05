@@ -33,7 +33,7 @@ PATH = os.path.realpath(__file__)
 PATH = PATH[:len(PATH) - 6]
 
 # Engine configuration
-FPS = 15 # frames per second (in Hz)
+FPS = 9 # frames per second (in Hz)
 
 # Environemnt operation
 CONFIG_FIELDS = {
@@ -410,8 +410,8 @@ class Environment:
 
             # Collision avoidance
             # with biome elements...
-            hm_cell = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
-            has_biome_object = hm_cell == 'mountain'
+            hm_color = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
+            has_biome_object = hm_color == 'mountain'
 
             # ... and other characters
             has_character = False
@@ -433,7 +433,7 @@ class Environment:
             print('Character UID {} is in use'.format(character_id))
             return 'nack'
 
-        # Character intelligence structure initialization
+        # Character data structure initialization
         # and first character render
         self.__characters[character_id] = {
             'id': character_id,
@@ -441,7 +441,7 @@ class Environment:
             'curr_search_time': 0,
             'x': x_mtrx_i, 'y': y_mtrx_i,
             'x_prev': x_mtrx_i, 'y_prev': y_mtrx_i,
-            'hm_color': hm_cell
+            'hm_color': hm_color
         }
 
         self.__screen.blit(character_sprite, (x + 2, y + 2))
@@ -497,33 +497,31 @@ class Environment:
         )
 
         for id, character in characters.items():
-            x_mtrx_i = character['x']
-            y_mtrx_i = character['y']
+            x = character['x']
+            y = character['y']
 
-            x_prev_mtrx_i = character['x_prev']
-            y_prev_mtrx_i = character['y_prev']
+            x_prev = character['x_prev']
+            y_prev = character['y_prev']
 
             curr_search_time = character['curr_search_time']
 
             # Check if a character has moved
-            # TODO
-            if (x_mtrx_i != x_prev_mtrx_i) or (y_mtrx_i != y_prev_mtrx_i):
-                hm_color = self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i][0]
+            if (x != x_prev) or (y != y_prev):
+                hm_color = self.__env_mtrx_repr[y_prev][x_prev][0]
 
-                # Check if heatmap cell color can be updated
                 if curr_search_time >= self.__config['search-time']:
-                    # Update character score
+                    # Character has searched the area. Now it's green!
                     try:
                         self.__characters[id]['score'] += \
                             self.__config['sc_' + hm_color + '__dtct']
                     except:
-                        self.__characters[id]['score'] += self.__config['sc_invalid_pos']
+                        self.__characters[id]['score'] += \
+                            self.__config['sc_invalid_pos']
 
-                    # Character has searched the area. Now it's green!
                     self.__redraw_re_updated_heatmap_tile(
-                        y_prev_mtrx_i, x_prev_mtrx_i, 'green'
+                        y_prev, x_prev, 'green'
                     )
-                    self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i] = [
+                    self.__env_mtrx_repr[y_prev][x_prev] = [
                         'green',
                         randint(*self.__config[
                             'green-' + self.__get_next_evolution_color('green')
@@ -531,33 +529,33 @@ class Environment:
                     ]
                 else:
                     self.__redraw_re_updated_heatmap_tile(
-                        y_prev_mtrx_i, x_prev_mtrx_i, hm_color
+                        y_prev, x_prev, hm_color
                     )
 
                 # Draw character on the new cell
                 self.__screen.blit(
                     character_sprite,
-                    (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
+                    (x * cell_size + 2, y * cell_size + 2)
                 )
                 self.__characters[id]['hm_color'] = hm_color
                 self.__characters[id]['curr_search_time'] = 0
             else:
-                hm_color = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
+                hm_color = self.__env_mtrx_repr[y][x][0]
 
                 # Check if heatmap cell color can be updated
                 if curr_search_time >= self.__config['search-time']:
-                    # Update character score
                     try:
                         self.__characters[id]['score'] += \
                             self.__config['sc_' + hm_color + '__dtct']
                     except:
-                        self.__characters[id]['score'] += self.__config['sc_invalid_pos']
+                        self.__characters[id]['score'] += \
+                            self.__config['sc_invalid_pos']
 
                     # Character has searched the area. Now it's green!
                     self.__redraw_re_updated_heatmap_tile(
-                        y_mtrx_i, x_mtrx_i, 'green'
+                        y, x, 'green'
                     )
-                    self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i] = [
+                    self.__env_mtrx_repr[y][x] = [
                         'green',
                         randint(*self.__config[
                             'green-' + self.__get_next_evolution_color('green')
@@ -567,14 +565,14 @@ class Environment:
                     # Redraw character on that same cell
                     self.__screen.blit(
                         character_sprite,
-                        (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
+                        (x * cell_size + 2, y * cell_size + 2)
                     )
                     self.__characters[id]['hm_color'] = 'green'
                 elif character['hm_color'] != hm_color:
                     # Redraw character on that same cell
                     self.__screen.blit(
                         character_sprite,
-                        (x_mtrx_i * cell_size + 2, y_mtrx_i * cell_size + 2)
+                        (x * cell_size + 2, y * cell_size + 2)
                     )
                     self.__characters[id]['hm_color'] = hm_color
 
@@ -677,7 +675,7 @@ class Environment:
         while True:
             # Sync with main thread
             if SEMAPHORE.acquire(False):
-                # Sync threads and update character intelligence structure
+                # Sync threads and update character data structure
                 pass
             else:
                 ready = dict(poller.poll(max_n_coms))

@@ -23,9 +23,7 @@ import aasma.agent.models.randomness as randomness
 # Constants
 #---------------------------------
 # Environment engine configuration
-FPS = 15 # frames per second (in Hz)
-
-DELAY = 1/FPS
+FPS = 9 # frames per second (in Hz)
 
 #---------------------------------
 # Execute
@@ -96,7 +94,7 @@ if __name__ == '__main__':
                 raise ValueError("Disconnected")
             print("<-- {}".format(response))
 
-            time.sleep(DELAY)
+            time.sleep(1/FPS)
         except:
             print("Shutting down agent controller")
             exit()
