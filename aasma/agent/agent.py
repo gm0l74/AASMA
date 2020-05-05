@@ -4,14 +4,14 @@
 # File : agent.py
 #
 # @ start date          22 04 2020
-# @ last update         04 05 2020
+# @ last update         05 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-import sys
-import zmq, time
+import sys, time
+import zmq
 import matplotlib.pyplot as plt
 
 import aasma.agent.grabber as grabber
@@ -84,8 +84,8 @@ if __name__ == '__main__':
             action = agent.make_action()
 
             # Send the selected action...
-            print("Sending selected action ({})".format(action))
             query = "move,{},{}".format(agent_id, action)
+            print("--> {}".format(query))
             ipc.send(query.encode())
 
             #  ... and get the response
@@ -93,8 +93,8 @@ if __name__ == '__main__':
                 response = ipc.recv().decode()
             except:
                 print("Environment has been disconnected")
-                raise ValueError('Disconnected')
-            print("Received {}".format(response))
+                raise ValueError("Disconnected")
+            print("<-- {}".format(response))
 
             time.sleep(DELAY)
         except:

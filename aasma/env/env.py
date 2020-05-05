@@ -4,16 +4,14 @@
 # File : env.py
 #
 # @ start date          22 04 2020
-# @ last update         03 05 2020
+# @ last update         05 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-import os, re, json, copy
-import hashlib
-
-import time
+import os, time, copy
+import re, json, hashlib
 from datetime import datetime
 
 import pygame
@@ -23,13 +21,6 @@ from random import randint
 import zmq, threading
 
 #---------------------------------
-# PWD
-#---------------------------------
-PATH = os.path.realpath(__file__)
-# Remove filename
-PATH = PATH[:len(PATH) - 6]
-
-#---------------------------------
 # Thread Syncing
 #---------------------------------
 SEMAPHORE = threading.BoundedSemaphore(1)
@@ -37,12 +28,20 @@ SEMAPHORE = threading.BoundedSemaphore(1)
 #---------------------------------
 # Constants
 #---------------------------------
+PATH = os.path.realpath(__file__)
+# Remove filename
+PATH = PATH[:len(PATH) - 6]
+
+# Engine configuration
+FPS = 15 # frames per second (in Hz)
+
+# Environemnt operation
 CONFIG_FIELDS = {
     # Dimensionality
-    'grid_dim': 'int_tuple', # int_tuple is (int > 0, int > 0)
+    'grid_dim': 'int_tuple', # int_tuple is (int > 1, int > 1)
     'cell_size': 'int+',
     # Spawn
-    'mountain': 'prob', # prob belongs to [0, 1]
+    'mountain': 'prob',
     'green': 'prob',
     'yellow': 'prob',
     'red': 'prob',
@@ -52,16 +51,16 @@ CONFIG_FIELDS = {
     'red-fire': 'int_tuple',
     'fire-yellow': 'int_tuple',
     # Character mechanics
-    'search-cell-time': 'int0',
-    # Score rewards
+    'search-time': 'int0',
+    # Reward system
     'sc_invalid_pos': 'int',
-    'sc_green_detect': 'int',
-    'sc_yellow_detect': 'int',
-    'sc_red_detect': 'int',
-    'sc_green_exist': 'int',
-    'sc_yellow_exist': 'int',
-    'sc_red_exist': 'int',
-    'sc_fire_exist': 'int'
+    'sc_green__dtct': 'int',
+    'sc_yellow__dtct': 'int',
+    'sc_red__dtct': 'int',
+    'sc_green': 'int',
+    'sc_yellow': 'int',
+    'sc_red': 'int',
+    'sc_fire': 'int'
 }
 
 HEATMAP_COLORS = {
@@ -74,13 +73,9 @@ HEATMAP_COLORS = {
 
 HEATMAP_TRANSITION_GUIDE = ('green', 'yellow', 'red', 'fire', 'yellow')
 
-# Environment engine configuration
-FPS = 15 # frames per second (in Hz)
-
 #---------------------------------
 # Sprites
 #---------------------------------
-# Filepaths to the sprites themselves
 MOUNTAIN_SPRITE_FILEPATH = os.path.join(PATH, '../../mountain.png')
 FIRE_SPRITE_FILEPATH = os.path.join(PATH, '../../fire.png')
 
@@ -91,14 +86,16 @@ CHARACTER_SPRITE_FILEPATH = os.path.join(PATH, '../../drone.png')
 #---------------------------------
 class Environment:
     def __init__(self, config_file):
-        # Load configuration for an environment
+        # Load environment configuration
         self.__config = self.__parse_config(config_file)
 
         # Environment operation
         self.__screen = None
         self.__env_mtrx_repr = []
-        self.__characters = {}
-        self.__moved = {}
+
+        # Character operation
+        self.__characters = {} # holds the latest updates
+        self.__action_void_fill = {}
 
         # Score system
         self.__score = 0
@@ -134,7 +131,7 @@ class Environment:
                 )
 
             # Error check tthe field
-            is_valid, f_transform = self.__config_check(
+            is_valid, f_transform = self.__config_field_check(
                 field, content[field])
             if not is_valid:
                 raise ValueError(
@@ -167,9 +164,9 @@ class Environment:
 
         return content
 
-    def __config_check(self, field, value):
+    def __config_field_check(self, field, value):
         data_type = CONFIG_FIELDS[field]
-
+        # Supported data_types: prob, int+, int, int0, int_tuple
         if data_type == 'prob':
             try:
                 is_valid = 0 <= float(value) <= 1
@@ -209,7 +206,7 @@ class Environment:
         return is_valid, f_transform
 
     #------------------------------------------------------------------
-    # Environment build and character spawning
+    # Environment build stuff
     #------------------------------------------------------------------
     def __build(self):
         pygame.init()
@@ -268,7 +265,6 @@ class Environment:
                             x//cell_size, y//cell_size
                         )
 
-                # Create a heatmap tile ((cell_size-4) * (cell_size-4))
                 self.__draw_heatmap_tile(y, x, color)
 
                 # Add cell to environment matrix representation
@@ -288,8 +284,8 @@ class Environment:
                 if color == 'mountain':
                     self.__screen.blit(mountain_sprite, (x + 2, y + 2))
                 else:
-                    # Update score
-                    self.__score += self.__config['sc_' + color + '_exist']
+                    # Update initial score
+                    self.__score += self.__config['sc_' + color]
                     self.__metrics['n_' + color] += 1
 
             # Add entire row to the matrix representation
@@ -298,7 +294,7 @@ class Environment:
     def __draw_heatmap_tile(self, y, x, color):
         cell_size = self.__config['cell_size']
 
-        # Create a heatmap tile ((cell_size-4) * (cell_size-4))
+        # Create a heatmap tile (cell_size-4) * (cell_size-4)
         # and place it in the environment
         pygame.draw.rect(
             self.__screen, HEATMAP_COLORS[color],
@@ -325,18 +321,22 @@ class Environment:
         if y == 0:
             return True
 
-        if (x == 0) or (x == self.__WINDOW_WIDTH//self.__config['cell_size'] - 1):
+        # Placements in first or last columns are not allowed
+        if (
+            x == 0 or \
+            x == self.__WINDOW_WIDTH // self.__config['cell_size'] - 1
+        ):
             return False
 
         # Layouts which are avoided by this algorithm
-        # (All off the situations are evaluated at the positions with
-        # greater value of y and x)
+        # (all off the situations are evaluated at the
+        # positions with greater value of y and x)
+        #
         # Layouts:
         # (1) --M--  (2) --M--  (3) --M--  (4) ----
         #     -M---      ---M-      -M-M-      -M-M-
         #     --M--      --M--      -----      --M--
 
-        # Solve those layouts
         # (2) and (4)
         try:
             pos_1 = self.__env_mtrx_repr[y-1][x+1][0] == 'mountain'
@@ -387,6 +387,9 @@ class Environment:
 
         return True
 
+    #------------------------------------------------------------------
+    # Character spawning
+    #------------------------------------------------------------------
     def __draw_and_spawn_character(self):
         cell_size = self.__config['cell_size']
         # Load character sprite
@@ -396,10 +399,10 @@ class Environment:
         )
 
         # Spawn a character at a random location
-        # (without collision with other characters and biome elements)
+        # (without collision with other characters or biome elements)
         do_spawn = True
         while do_spawn:
-            # Get a new random position (both in pixels and cell units)
+            # Get a new random position (both in pixels and grid units)
             x_mtrx_i = randint(0, (self.__WINDOW_WIDTH // cell_size) - 1)
             x = x_mtrx_i * cell_size
             y_mtrx_i = randint(0, (self.__WINDOW_HEIGHT // cell_size) - 1)
@@ -407,10 +410,10 @@ class Environment:
 
             # Collision avoidance
             # with biome elements...
-            env_pos = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
-            has_biome_object = env_pos[0] == 'mountain'
+            hm_cell = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
+            has_biome_object = hm_cell == 'mountain'
 
-            # ... and with other characters
+            # ... and other characters
             has_character = False
             for character in self.__characters.values():
                 coll_x, coll_y = character['x'], character['y']
@@ -421,27 +424,27 @@ class Environment:
             if not (has_biome_object or has_character):
                 do_spawn = False
 
-        # Create a unique character id
-        now = datetime.now()
-        cur_time = now.strftime("%m/%d/%Y%H:%M:%S.%f")
-        character_id = hashlib.sha1(cur_time.encode()).hexdigest()
+        # Create uid based on time of creation
+        curr_time = datetime.now().strftime("%m/%d/%Y%H:%M:%S.%f")
+        character_id = hashlib.sha1(curr_time.encode()).hexdigest()
 
-        # Character data structure initialization
+        # Decline new character request
         if character_id in self.__characters:
-            # Really unlikely
-            print('Couldn\'t deploy character {}'.format(character_id))
+            print('Character UID {} is in use'.format(character_id))
             return 'nack'
 
+        # Character intelligence structure initialization
+        # and first character render
         self.__characters[character_id] = {
             'id': character_id,
             'score': 0,
             'curr_search_time': 0,
             'x': x_mtrx_i, 'y': y_mtrx_i,
             'x_prev': x_mtrx_i, 'y_prev': y_mtrx_i,
-            'hm_color': env_pos[0]
+            'hm_color': hm_cell
         }
-        self.__screen.blit(character_sprite, (x + 2, y + 2))
 
+        self.__screen.blit(character_sprite, (x + 2, y + 2))
         return character_id
 
     #------------------------------------------------------------------
@@ -449,7 +452,6 @@ class Environment:
     #------------------------------------------------------------------
     def __update_heatmap(self):
         cell_size = self.__config['cell_size']
-
         # Load the fire sprite once throughout this update
         fire_sprite = pygame.transform.scale(
             pygame.image.load(FIRE_SPRITE_FILEPATH),
@@ -460,58 +462,33 @@ class Environment:
             x_mtrx_i = x // cell_size
             for y in range(0, self.__WINDOW_HEIGHT, cell_size):
                 y_mtrx_i = y // cell_size
-
                 color, ts = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i]
 
                 if (ts <= 0) and (color != 'mountain'):
                     # Update heatmat tile
-                    # Get the color of the current update
                     color = self.__get_next_evolution_color(color)
-
-                    # Place the new heatmap tile in the screen
                     self.__draw_heatmap_tile(y, x, color)
 
                     # Update score
-                    self.__score += self.__config['sc_' + color + '_exist']
+                    self.__score += self.__config['sc_' + color]
                     self.__metrics['n_' + color] += 1
 
                     if color == 'fire':
                         self.__screen.blit(fire_sprite, (x + 2, y + 2))
 
-                    # Get the next color to be displayed
-                    # (when time step resets)
-                    next_color = self.__get_next_evolution_color(color)
-
                     # Update cell of matrix representation
+                    next_color = self.__get_next_evolution_color(color)
                     self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i] = [
                         color,
                         randint(*self.__config[color + '-' + next_color])
                     ]
                 elif ts > 0:
-                    # Passage passage of time
+                    # Passage of time
                     self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][1] -= 1
-
-    def __redraw_re_updated_heatmap_tile(self, y, x, color):
-        # Used in '__update_character' which happens after '__update_heatmap'
-        cell_size = self.__config['cell_size']
-
-        # Load the fire sprite
-        fire_sprite = pygame.transform.scale(
-            pygame.image.load(FIRE_SPRITE_FILEPATH),
-            (cell_size - 2, cell_size - 2)
-        )
-
-        # Place the heatmap tile in the screen without the drone sprite
-        self.__draw_heatmap_tile(y  * cell_size, x  * cell_size, color)
-
-        if color == 'fire':
-            self.__screen.blit(
-                fire_sprite, (x * cell_size + 2, y * cell_size + 2)
-            )
 
     def __update_character(self, characters):
         cell_size = self.__config['cell_size']
-        time_to_reset_cell = self.__config['search-cell-time']
+        time_to_reset_cell = self.__config['search-time']
 
         # Load character sprite
         character_sprite = pygame.transform.scale(
@@ -520,26 +497,25 @@ class Environment:
         )
 
         for id, character in characters.items():
-            # Current position
             x_mtrx_i = character['x']
             y_mtrx_i = character['y']
 
-            # Previous position
             x_prev_mtrx_i = character['x_prev']
             y_prev_mtrx_i = character['y_prev']
 
             curr_search_time = character['curr_search_time']
 
             # Check if a character has moved
+            # TODO
             if (x_mtrx_i != x_prev_mtrx_i) or (y_mtrx_i != y_prev_mtrx_i):
                 hm_color = self.__env_mtrx_repr[y_prev_mtrx_i][x_prev_mtrx_i][0]
 
                 # Check if heatmap cell color can be updated
-                if curr_search_time >= self.__config['search-cell-time']:
+                if curr_search_time >= self.__config['search-time']:
                     # Update character score
                     try:
                         self.__characters[id]['score'] += \
-                            self.__config['sc_' + hm_color + '_detect']
+                            self.__config['sc_' + hm_color + '__dtct']
                     except:
                         self.__characters[id]['score'] += self.__config['sc_invalid_pos']
 
@@ -569,11 +545,11 @@ class Environment:
                 hm_color = self.__env_mtrx_repr[y_mtrx_i][x_mtrx_i][0]
 
                 # Check if heatmap cell color can be updated
-                if curr_search_time >= self.__config['search-cell-time']:
+                if curr_search_time >= self.__config['search-time']:
                     # Update character score
                     try:
                         self.__characters[id]['score'] += \
-                            self.__config['sc_' + hm_color + '_detect']
+                            self.__config['sc_' + hm_color + '__dtct']
                     except:
                         self.__characters[id]['score'] += self.__config['sc_invalid_pos']
 
@@ -604,35 +580,44 @@ class Environment:
 
                 self.__characters[id]['curr_search_time'] += 1
 
+    def __redraw_re_updated_heatmap_tile(self, y, x, color):
+        cell_size = self.__config['cell_size']
+
+        # Place the heatmap tile in the screen without the drone sprite
+        self.__draw_heatmap_tile(y  * cell_size, x  * cell_size, color)
+
+        if color == 'fire':
+            fire_sprite = pygame.transform.scale(
+                pygame.image.load(FIRE_SPRITE_FILEPATH),
+                (cell_size - 2, cell_size - 2)
+            )
+            self.__screen.blit(
+                fire_sprite, (x * cell_size + 2, y * cell_size + 2)
+            )
+
     def __move_character(self, id, action):
         # Movement guide for each action and each axis
         mov_guide = {
             'up': {
-                'x': lambda x: x,
-                'y': lambda y: y - 1
+                'x': lambda x: x, 'y': lambda y: y - 1
             },
             'down': {
-                'x': lambda x: x,
-                'y': lambda y: y + 1
+                'x': lambda x: x, 'y': lambda y: y + 1
             },
             'left': {
-                'x': lambda x: x - 1,
-                'y': lambda y: y
+                'x': lambda x: x - 1, 'y': lambda y: y
             },
             'right': {
-                'x': lambda x: x + 1,
-                'y': lambda y: y
+                'x': lambda x: x + 1, 'y': lambda y: y
             },
             'stay': {
-                'x': lambda x: x,
-                'y': lambda y: y
+                'x': lambda x: x, 'y': lambda y: y
             }
         }
 
         if action not in mov_guide:
             raise ValueError('Invalid Action')
 
-        # Create new position
         character = self.__characters[id]
         new_x_mtrx = mov_guide[action]['x'](character['x'])
         new_y_mtrx = mov_guide[action]['y'](character['y'])
@@ -640,6 +625,7 @@ class Environment:
         # Check if new position is possible
         #  - can't move outside of the world boundaries
         #  - can't move into fires or mountains
+        # - can't collide with other characters
         is_position_valid = True
         if not (0 <= new_x_mtrx < len(self.__env_mtrx_repr[0])):
             is_position_valid = False
@@ -647,8 +633,8 @@ class Environment:
         if not (0 <= new_y_mtrx < len(self.__env_mtrx_repr)):
             is_position_valid = False
 
-        color = self.__env_mtrx_repr[new_y_mtrx][new_x_mtrx][0]
-        if color in ('mountain', 'fire'):
+        hm_type = self.__env_mtrx_repr[new_y_mtrx][new_x_mtrx][0]
+        if hm_type in ('mountain', 'fire'):
             is_position_valid = False
 
         # Avoid character collision
@@ -661,33 +647,32 @@ class Environment:
                     is_position_valid = False
 
         # If the new position is not possible...
-        # the character returns to the original position
+        # the character returns to its previous position
         # and a penalty is added to the score
         if not is_position_valid:
             self.__characters[id]['score'] += self.__config['sc_invalid_pos']
         else:
-            # Update position
             self.__characters[id]['x_prev'] = self.__characters[id]['x']
             self.__characters[id]['y_prev'] = self.__characters[id]['y']
             self.__characters[id]['x'] = new_x_mtrx
             self.__characters[id]['y'] = new_y_mtrx
 
     #------------------------------------------------------------------
-    # Environment execution and threading
+    # Environment execution and IPC threading
     #------------------------------------------------------------------
     def __communicator(self):
-        # Create the structure for inter-process communication
-        socket = zmq.Context().socket(zmq.REP)
+        # Create the inter-process communicator
+        ipc = zmq.Context().socket(zmq.REP)
 
-        socket.setsockopt(zmq.LINGER, 0)
-        socket.setsockopt(zmq.AFFINITY, 1)
-        socket.setsockopt(zmq.RCVTIMEO, 250) # timeout
+        ipc.setsockopt(zmq.LINGER, 0)
+        ipc.setsockopt(zmq.AFFINITY, 1)
+        ipc.setsockopt(zmq.RCVTIMEO, 250) # Timeout
 
-        socket.bind("tcp://*:5555")
+        ipc.bind("tcp://*:5555")
 
         poller = zmq.Poller()
-        poller.register(socket)
-        n_character_threads = 0
+        poller.register(ipc)
+        max_n_coms = 0
 
         while True:
             # Sync with main thread
@@ -695,37 +680,37 @@ class Environment:
                 # Sync threads and update character intelligence structure
                 pass
             else:
-                ready = dict(poller.poll(n_character_threads))
-                if ready.get(socket):
-                    # Receive transmission from character client
-                    message = socket.recv().decode()
-                    # print(" <-- {}".format(message)) # debug incoming
+                ready = dict(poller.poll(max_n_coms))
+                if ready.get(ipc):
+                    # Receive character client transmission
+                    message = ipc.recv().decode()
 
-                    # Handle request
+                    # Process request
                     message = message.split(',')
                     if message[0] == 'create':
-                        n_character_threads += 1
+                        max_n_coms += 1
                         response = self.__draw_and_spawn_character()
                     elif message[0] == 'move':
                         try:
-                            self.__move_character(message[1], message[2])
-                            self.__moved[message[1]] = True
+                            _, uid, action = message
+                            self.__move_character(uid, action)
+                            self.__action_void_fill[uid] = False
                         except:
                             pass
+
                         response = 'ok'
                     else:
                         raise ValueError('Couldn\'t handle message')
 
-                    # Send response back to character client
-                    socket.send(response.encode())
-                    # print(" --> {}".format(response)) # debug outgoing
+                    # Reply to character client
+                    ipc.send(response.encode())
 
     def run(self):
         # Start the engine clock and temporal variables
         clock = pygame.time.Clock() ; n_ticks = 0
         t_seconds = 0
 
-        # Create another thread to handle inter-process communication (ipc)
+        # Create another thread to handle inter-process communication
         ipcThread = threading.Thread(target=self.__communicator)
 
         # Set ipc to daemon thread
@@ -733,10 +718,11 @@ class Environment:
         ipcThread.daemon = True
         ipcThread.start()
 
+        # Proxy for agent *movement* updates
+        characters_proxy = copy.deepcopy(self.__characters)
+
         # Main loop
         RUN_GAME = True
-
-        characters_relay = copy.deepcopy(self.__characters)
         while RUN_GAME:
             # Handle exit event
             for event in pygame.event.get():
@@ -746,36 +732,38 @@ class Environment:
             # Update heatmap...
             self.__update_heatmap()
             # ...and character movement
-            self.__update_character(characters_relay)
+            self.__update_character(characters_proxy)
 
-            # Show the score every second
+            # Display score in every second
             if n_ticks % FPS == 0:
                 score = self.__score
                 for character in self.__characters.values():
                     score += character['score']
-                print("-- Tick {}s\tScore {}".format(t_seconds, score))
+
+                print("( {}s )\t{}".format(t_seconds, score))
                 t_seconds += 1
 
             pygame.display.flip()
             clock.tick(FPS) ; n_ticks += 1
 
-            # Sync with the communicator
+            # Sync with ipc daemon thread
             try:
                 SEMAPHORE.release()
-                characters_relay = copy.deepcopy(self.__characters)
-                for key in self.__characters.keys():
-                    try:
-                        if not self.__moved[key]:
-                            self.__move_character(key, 'stay')
+                characters_proxy = copy.deepcopy(self.__characters)
 
-                        self.__moved[key] = False
+                # Reset proxy and create a new agent action if necessary
+                for uid in self.__characters.keys():
+                    try:
+                        if self.__action_void_fill[uid]:
+                            self.__move_character(uid, 'stay')
+
+                        self.__action_void_fill[uid] = True
                     except:
                         pass
             except ValueError:
                 time.sleep(1/FPS)
 
         # Display metrics
-        print("\n--- Metrics ---")
+        print("\nFinal metrics")
         for k, v in self.__metrics.items():
             print("{} - {}".format(k, v))
-        print("---------------")

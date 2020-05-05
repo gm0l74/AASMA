@@ -1,9 +1,10 @@
 # AASMA
 ## Developing a sentient drone
 
-Ability to love is done until the 30th of march! Change my mind! Monstruoso!!
+Ability to love is done until the 30th of may! Change my mind! Monstruoso!!
 
 ## Installation (Makefile)
+
 To install aasma, run 'make'.
 To uninstall it, run 'make uninstall'.
 You can uninstall and re-install with 'make reset'.
