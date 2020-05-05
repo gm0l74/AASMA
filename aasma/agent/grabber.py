@@ -4,22 +4,34 @@
 # File : grabber.py
 #
 # @ start date          22 04 2020
-# @ last update         04 05 2020
+# @ last update         05 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-import numpy as np
 from PIL import ImageGrab
-import cv2
-import time
+import pygetwindow as gw
+import numpy as np
+import cv2, time
 
 #---------------------------------
 # function: snapshot
 #---------------------------------
 def snapshot():
-    screen = np.array(ImageGrab.grab(bbox=(0,40,600,630)))
+    env_window = gw.getWindowsWithTitle('AASMA Environment')
+    if len(env_window) != 1:
+        raise ValueError('Environment doesn\'t exist or isn\'t unique')
+
+    env_window = env_window[0]
+    # Focus window
+    env_window.activate()
+    # Move window to standard position
+    env_window.moveTo(0, 0)
+
+    env_width, env_height = env_window.size
+
+    screen = np.array(ImageGrab.grab(bbox=(0, 0, env_width, env_height)))
     return screen
 
 #---------------------------------
