@@ -68,7 +68,7 @@ if __name__ == '__main__':
     if agent_type == 'randomness':
         agent = randomness.Randomness(actions)
     else:
-        agent = drl.DeepReinforcementLearning(actions)
+        agent = drn.DeepReinforcementLearning(actions)
 
     # Main cycle
     while True:

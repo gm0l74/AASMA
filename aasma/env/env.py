@@ -527,6 +527,7 @@ class Environment:
                             'green-' + self.__get_next_evolution_color('green')
                         ])
                     ]
+                    self.__metrics['n_green'] += 1
                 else:
                     self.__redraw_re_updated_heatmap_tile(
                         y_prev, x_prev, hm_color
@@ -561,6 +562,7 @@ class Environment:
                             'green-' + self.__get_next_evolution_color('green')
                         ])
                     ]
+                    self.__metrics['n_green'] += 1
 
                     # Redraw character on that same cell
                     self.__screen.blit(
