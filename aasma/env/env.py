@@ -4,7 +4,7 @@
 # File : env.py
 #
 # @ start date          22 04 2020
-# @ last update         05 05 2020
+# @ last update         15 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -512,10 +512,10 @@ class Environment:
                 if curr_search_time >= self.__config['search-time']:
                     # Character has searched the area. Now it's green!
                     try:
-                        self.__characters[id]['score'] += \
+                        self.__characters[id]['score'] = \
                             self.__config['sc_' + hm_color + '__dtct']
                     except:
-                        self.__characters[id]['score'] += \
+                        self.__characters[id]['score'] = \
                             self.__config['sc_invalid_pos']
 
                     self.__redraw_re_updated_heatmap_tile(
@@ -546,10 +546,10 @@ class Environment:
                 # Check if heatmap cell color can be updated
                 if curr_search_time >= self.__config['search-time']:
                     try:
-                        self.__characters[id]['score'] += \
+                        self.__characters[id]['score'] = \
                             self.__config['sc_' + hm_color + '__dtct']
                     except:
-                        self.__characters[id]['score'] += \
+                        self.__characters[id]['score'] = \
                             self.__config['sc_invalid_pos']
 
                     # Character has searched the area. Now it's green!
@@ -650,7 +650,7 @@ class Environment:
         # the character returns to its previous position
         # and a penalty is added to the score
         if not is_position_valid:
-            self.__characters[id]['score'] += self.__config['sc_invalid_pos']
+            self.__characters[id]['score'] = self.__config['sc_invalid_pos']
         else:
             self.__characters[id]['x_prev'] = self.__characters[id]['x']
             self.__characters[id]['y_prev'] = self.__characters[id]['y']
@@ -693,12 +693,11 @@ class Environment:
                     elif message[0] == 'move':
                         try:
                             _, uid, action = message
+                            response = str(self.__characters[uid]['score'])
                             self.__move_character(uid, action)
                             self.__action_void_fill[uid] = False
                         except:
                             pass
-
-                        response = 'ok'
                     else:
                         raise ValueError('Couldn\'t handle message')
 
