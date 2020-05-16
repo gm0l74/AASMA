@@ -16,9 +16,6 @@ import matplotlib.pyplot as plt
 
 import aasma.agent.grabber as grabber
 
-import aasma.agent.models.drn as drn
-import aasma.agent.models.randomness as randomness
-
 #---------------------------------
 # Constants
 #---------------------------------
@@ -66,8 +63,10 @@ if __name__ == '__main__':
     # Build the brains of the agent
     actions = ('up', 'down', 'left', 'right', 'stay')
     if agent_type == 'randomness':
+        import aasma.agent.models.randomness as randomness
         agent = randomness.Randomness(actions)
     else:
+        import aasma.agent.models.drn as drn
         agent = drn.DeepReinforcementLearning(actions)
 
     # Main cycle
