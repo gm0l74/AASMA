@@ -14,6 +14,8 @@ from datetime import datetime
 from PIL import Image
 import numpy as np
 import zmq, time
+import atexit
+from random import random, randint, randrange
 
 from aasma.agent.models.AgentModel import AgentModel
 import aasma.agent.grabber as grabber
@@ -26,12 +28,16 @@ from tensorflow.keras.layers import Conv2D, Flatten, Dense
 # Constants
 #---------------------------------
 IMG_SIZE = (600, 600)
+FPS = 9
 
 #---------------------------------
 # class DeepQNetwork
 #---------------------------------
 class DeepQNetwork:
     def __init__(self, actions, input_shape, load=None):
+        self.actions = actions
+        self.__input_shape = input_shape
+
         # Hyper Parameters
         self.__gamma = 0.99
         self.__mini_batch_size = 32
@@ -39,7 +45,7 @@ class DeepQNetwork:
         self.__model = None
         if load is None:
             # Build and compile the model
-            self.build() ; self.__compile()
+            self.__build() ; self.__compile()
         else:
             # Load previously made model
             self.__load(load)
@@ -63,7 +69,7 @@ class DeepQNetwork:
         self.__model.add(Conv2D(
             32, 8, strides=(4, 4), padding='valid',
             activation='relu',
-            input_shape=input_shape
+            input_shape=self.__input_shape
         ))
         self.__model.add(Conv2D(
             64, 4, strides=(2, 2),
@@ -99,7 +105,9 @@ class DeepQNetwork:
 
             # Generate inputs and targets
             for datapoint in batch:
-                x_train.append(datapoint['source'].astype(np.float64))
+                x_train.append(
+                    datapoint['source'].astype(np.float64).reshape(1, 600, 600, 4)
+                )
 
                 # Obtain the q value of the state
                 next_state = datapoint['destination'].astype(np.float64)
@@ -123,9 +131,10 @@ class DeepQNetwork:
                 epochs=1, verbose=0
             )
 
+            hist = hist.history
             cur_time = datetime.now().strftime("%H:%M:%S")
             print("[{}] loss {} | acc {}".format(
-                cur_time, hist['loss'][0] , hist['acc'][0]
+                cur_time, hist['loss'][0] , hist['accuracy'][0]
             ))
 
     def predict(self, data):
@@ -135,8 +144,8 @@ class DeepQNetwork:
             if not isinstance(data, np.ndarray):
                 raise ValueError('\'data\' must be np.array')
 
-            data = data.astype(np.float64)
-            self.model.predict(data, batch_size=1)[0]
+            data = data.astype(np.float64).reshape(1, 600, 600, 4)
+            return self.model.predict(data, batch_size=1)[0]
 
     def load(self, filename):
         print(" => Loading model...")
@@ -169,11 +178,14 @@ class DeepQNetwork:
 #---------------------------------
 class DeepQAgent:
     def __init__(self, actions):
-        super(DeepReinforcementLearning, self).__init__(actions)
+        self.actions = actions
 
         # Parameters
+        self.__epsilon = 1
         self.__epsilon_decrease_value = 0.99
         self.__min_epsilon = 0.1
+        self.__replay_mem_size = 1024
+        self.__mini_batch_size = 32
 
         # Replay memory
         self.__experiences = []
@@ -181,12 +193,12 @@ class DeepQAgent:
 
         # Create PolicyNet
         self.__PolicyNet = DeepQNetwork(
-            self.actions, (4, 600, 600)
+            self.actions, (600, 600, 4)
         )
 
         # Create ValueNet
         self.__ValueNet = DeepQNetwork(
-            self.actions, (4, 600, 600)
+            self.actions, (600, 600, 4)
         )
 
         # Reset value network
@@ -233,7 +245,7 @@ class DeepQAgent:
 
     def sample_batch(self):
         batch = []
-        for i in xrange(self.__mini_batch_size):
+        for i in range(self.__mini_batch_size):
             batch.append(self.__experiences[
                 randrange(0, len(self.__experiences))
             ])
@@ -274,18 +286,20 @@ class AgentController(AgentModel):
         super(AgentController, self).__init__(actions)
 
         self.__agent = DeepQAgent(actions)
+        atexit.register(self.__agent.save_progress)
+        self.__actions = actions
 
         # Parameters
-        self.__max_episode_length = 200
-        self.__update_frequency = 10
-        self.__valueNet_update_freq = 30
+        self.__max_episode_length = 1000
+        self.__update_frequency = 20
+        self.__valueNet_update_freq = 10e3
 
         # Min n of transitions to store in the replay memory before training
         self.__replay_start_size = 3
 
-    def perceive(self, snapshot):
+    def perceive(self, snap):
         # Convert to gray-scale
-        image = Image.fromarray(obs, 'RGB').convert('L').resize(IMG_SIZE)
+        image = Image.fromarray(snap, 'RGB').convert('L').resize(IMG_SIZE)
 
         # Convert to a numpy array
         self.__last_snapshot = np.asarray(
@@ -335,13 +349,14 @@ class AgentController(AgentModel):
 
             # Episode loop
             episode_step = 0
-            while episode_step < self.__.max_episode_length:
+            while episode_step < self.__max_episode_length:
 
                 # Select an action using the agent
-                action = agent.get_action(np.asarray([state]))
+                action = self.__agent.get_action(np.asarray([state]))
 
                 # Send the selected action...
-                query = "move,{},{}".format(agent_id, action)
+                query = "move,{},{}".format(agent_id, self.actions[action])
+                print(query)
                 ipc.send(query.encode())
 
                 #  ... and get the reward
@@ -359,7 +374,7 @@ class AgentController(AgentModel):
                 # Clip the reward
                 clipped_reward = np.clip(reward, -1, 1)
                 # Store transition in replay memory
-                agent.add_experience(
+                self.__agent.add_experience(
                     np.asarray([state]),
                     action,
                     clipped_reward,
@@ -370,18 +385,18 @@ class AgentController(AgentModel):
 
                 # Train the agent
                 do_update = episode_step % self.__update_frequency == 0
-                exp_check = len(agent.experiences) >= self.__replay_start_size
+                exp_check = len(self.__agent.experiences) >= self.__replay_start_size
 
                 if do_update and exp_check:
-                    agent.train()
+                    self.__agent.train()
 
                     # Every now and then, update ValueNet
-                    if agent.training_count % self.__valueNet_update_freq == 0:
-                        agent.reset_ValueNet()
+                    if self.__agent.training_count % self.__valueNet_update_freq == 0:
+                        self.__agent.reset_ValueNet()
 
                 # Linear epsilon annealing
                 if exp_check:
-                    agent.update_epsilon()
+                    self.__agent.update_epsilon()
 
                 # Prepare for the next iteration
                 state = next_state
@@ -393,4 +408,5 @@ class AgentController(AgentModel):
 # Execute
 #---------------------------------
 if __name__ == '__main__':
-    AgentController().train()
+    actions = ('up', 'down', 'left', 'right', 'stay')
+    AgentController(actions).train()
