@@ -16,6 +16,8 @@ import atexit
 from PIL import Image
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 #---------------------------------
 # Constants
 #---------------------------------
@@ -70,6 +72,8 @@ if __name__ == '__main__':
         # Deep Learning Training
         # Observe reward and init first state
         observation = perceive(grabber.snapshot())
+        plt.imshow(observation)
+        plt.show()
 
         # Init state with the same observations
         state = np.array([ observation for _ in range(4) ])
