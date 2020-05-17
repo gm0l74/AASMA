@@ -23,6 +23,9 @@ PATH = os.path.realpath(__file__)
 # Remove filename
 PATH = PATH[:len(PATH) - 14]
 
+# Changes behavior of environment reset
+LOCK_RESET = False
+
 # Environemnt operation
 HEATMAP_COLORS = {
     'green': (0, 250, 0),
@@ -77,6 +80,48 @@ class Environment:
         # First screen render
         pygame.display.flip()
 
+    def __init_matrix_repr(self):
+        self.__env_mtrx = []
+
+        # Heat signature probability distribution
+        p_distribution = np.array([
+            self.__config['green'],
+            self.__config['yellow'],
+            self.__config['red'],
+            self.__config['mountain']
+        ])
+        c_choice = ('green', 'yellow', 'red', 'mountain')
+
+        cell_size = self.__config['cell_size']
+        for y in range(0, self.__WINDOW_WIDTH // cell_size):
+            row_repr = []
+            for x in range(0, self.__WINDOW_HEIGHT // cell_size):
+                do_draw = True
+                while do_draw:
+                    # Assume it's a one time draw
+                    do_draw = False
+                    # Draw the color
+                    color = np.random.choice(
+                        c_choice, 1, p=p_distribution
+                    )[0]
+
+                    if color == 'mountain':
+                        # Mountain mirroring avoidance
+                        do_draw = not self.__check_good_mountain_pos(
+                            x // cell_size, y // cell_size
+                        )
+
+                # Add cell to environment matrix representation
+                row_repr.append([
+                    color,
+                    0 if color == 'mountain' else \
+                    randint(*self.__config[
+                        color + '-' + self.__get_next_evolution_color(color)
+                    ])
+                ])
+
+            self.__env_mtrx.append(row_repr)
+
     def __draw_and_spawn_environment(self):
         cell_size = self.__config['cell_size']
 
@@ -93,56 +138,18 @@ class Environment:
         # Init the heat map
         # Use the heatmap heat signature probabilities
         # provided in config.json (held in self.__config)
+        self.__init_matrix_repr()
+        self.__reset_env_matrx = copy.deepcopy(self.__env_mtrx)
 
-        # Heat signature probability distribution
-        p_distribution = np.array([
-            self.__config['green'],
-            self.__config['yellow'],
-            self.__config['red'],
-            self.__config['mountain']
-        ])
-        c_choice = ('green', 'yellow', 'red', 'mountain')
-
-        # Populate each cell with a heat signature and biome elements
         for y in range(0, self.__WINDOW_WIDTH, cell_size):
-            row_repr = []
             for x in range(0, self.__WINDOW_HEIGHT, cell_size):
-                # Create the heat signature cell
-                do_draw = True
-                while do_draw:
-                    # Assume it's a one time draw
-                    do_draw = False
-                    # Draw the color
-                    color = np.random.choice(c_choice, 1, p=p_distribution)[0]
-
-                    if color == 'mountain':
-                        # Mountain mirroring avoidance
-                        do_draw = not self.__check_good_mountain_pos(
-                            x // cell_size, y // cell_size
-                        )
-
+                color = self.__env_mtrx[y // cell_size][x // cell_size][0]
                 self.__draw_heatmap_tile(y, x, color)
-
-                # Add cell to environment matrix representation
-                # cell is [color, time step]
-                row_repr.append([
-                    color,
-                    0 if color == 'mountain' else \
-                    randint(*self.__config[
-                        color + '-' + self.__get_next_evolution_color(color)
-                    ])
-                ])
 
                 # Sprite injection
                 # The only sprite to be inserted at this stage is the mountain
                 if color == 'mountain':
                     self.__screen.blit(mountain_sprite, (x + 2, y + 2))
-
-            # Add entire row to the matrix representation
-            self.__env_mtrx.append(row_repr)
-
-        # For future re-renders
-        self.__reset_env_matrx = copy.deepcopy(self.__env_mtrx)
 
     def __draw_heatmap_tile(self, y, x, color):
         cell_size = self.__config['cell_size']
@@ -309,21 +316,21 @@ class Environment:
                         character['reward'] += self.__config['invalid_pos']
 
                     self.__draw_heatmap_tile(
-                        y_prev * cell_size, x_prev * cell_size, 'green'
+                        y * cell_size, x * cell_size, 'green'
                     )
 
                     # Override '__update_heatmap'
-                    self.__env_mtrx[y_prev][x_prev] = [
+                    self.__env_mtrx[y][x] = [
                         'green',
                         randint(*self.__config[
                             'green-' + self.__get_next_evolution_color('green')
                         ])
                     ]
-                else:
-                    self.__draw_heatmap_tile(
-                        y_prev * cell_size, x_prev * cell_size,
-                        self.__env_mtrx[y_prev][x_prev][0]
-                    )
+
+                self.__draw_heatmap_tile(
+                    y_prev * cell_size, x_prev * cell_size,
+                    self.__env_mtrx[y_prev][x_prev][0]
+                )
 
                 # Draw character on the new cell
                 self.__screen.blit(
@@ -372,61 +379,9 @@ class Environment:
 
         return [character['reward'] for character in self.__characters]
 
-    # --- Public functions ---
-    def reset(self):
-        # Reset matrix representation
-        self.__env_matrx = copy.deepcopy(self.__reset_env_matrx)
-
-        # Load required sprites
-        cell_size = self.__config['cell_size']
-        mountain_sprite = pygame.transform.scale(
-            pygame.image.load(MOUNTAIN_SPRITE_FILEPATH),
-            (cell_size - 2, cell_size - 2)
-        )
-        character_sprite = pygame.transform.scale(
-            pygame.image.load(CHARACTER_SPRITE_FILEPATH),
-            (cell_size - 2, cell_size - 2)
-        )
-
-        for y in range(0, self.__WINDOW_WIDTH // cell_size):
-            for x in range(0, self.__WINDOW_HEIGHT // cell_size):
-                color = self.__env_matrx[y][x][0]
-                self.__draw_heatmap_tile(y * cell_size, x * cell_size, color)
-
-                # Sprite injection
-                if color == 'mountain':
-                    self.__screen.blit(
-                        mountain_sprite,
-                        (x * cell_size + 2, y * cell_size + 2)
-                    )
-
-        # Reset characters
-        for character_id in range(len(self.__characters)):
-            self.__characters[character_id] = \
-                copy.deepcopy(self.__characters_reset[character_id])
-
-            x = self.__characters[character_id]['x']
-            y = self.__characters[character_id]['y']
-
-            self.__screen.blit(
-                character_sprite,
-                (x * cell_size + 2, y * cell_size + 2)
-            )
-
-        # Re-render first render
-        pygame.display.flip()
-
-    def add_character(self):
+    def __find_insertion_zone(self):
         cell_size = self.__config['cell_size']
 
-        # Load character sprite
-        character_sprite = pygame.transform.scale(
-            pygame.image.load(CHARACTER_SPRITE_FILEPATH),
-            (cell_size - 2, cell_size - 2)
-        )
-
-        # Spawn a character at a random location
-        # (without collision with other characters or biome elements)
         do_spawn = True
         while do_spawn:
             # Get a new random position (both in pixels and grid units)
@@ -451,6 +406,90 @@ class Environment:
             if not (has_biome_object or has_character):
                 do_spawn = False
 
+        return x_mtrx, y_mtrx, hm_color
+
+    # --- Public functions ---
+    def reset(self):
+        cell_size = self.__config['cell_size']
+
+        # Reset matrix representation...
+        if LOCK_RESET:
+            # ...to the same inital state
+            self.__env_mtrx = copy.deepcopy(self.__reset_env_matrx)
+        else:
+            # ...to a new inital state
+            self.__init_matrix_repr()
+
+        # Load required sprites
+        mountain_sprite = pygame.transform.scale(
+            pygame.image.load(MOUNTAIN_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
+        )
+        character_sprite = pygame.transform.scale(
+            pygame.image.load(CHARACTER_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
+        )
+
+        for y in range(0, self.__WINDOW_WIDTH // cell_size):
+            for x in range(0, self.__WINDOW_HEIGHT // cell_size):
+                color = self.__env_mtrx[y][x][0]
+                self.__draw_heatmap_tile(y * cell_size, x * cell_size, color)
+
+                # Sprite injection
+                if color == 'mountain':
+                    self.__screen.blit(
+                        mountain_sprite,
+                        (x * cell_size + 2, y * cell_size + 2)
+                    )
+
+        # Reset characters
+        self.__characters = []
+        for character_id in range(len(self.__characters_reset)):
+            if LOCK_RESET:
+                self.__characters.append(
+                    copy.deepcopy(self.__characters_reset[character_id])
+                )
+            else:
+                x, y, hm_color = self.__find_insertion_zone()
+
+                # Character data structure initialization
+                # and first character render
+                character = {
+                    'reward': 0,
+                    'curr_search_time': 0,
+                    'x': x,
+                    'y': y,
+                    'x_prev': x,
+                    'y_prev': y,
+                    'hm_color': hm_color
+                }
+
+                self.__characters.append(character)
+
+            x = self.__characters[character_id]['x']
+            y = self.__characters[character_id]['y']
+
+            self.__screen.blit(
+                character_sprite,
+                (x * cell_size + 2, y * cell_size + 2)
+            )
+
+        # Re-render first render
+        pygame.display.flip()
+
+    def add_character(self):
+        cell_size = self.__config['cell_size']
+
+        # Load character sprite
+        character_sprite = pygame.transform.scale(
+            pygame.image.load(CHARACTER_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
+        )
+
+        # Spawn a character at a random location
+        # (without collision with other characters or biome elements)
+        x_mtrx, y_mtrx, hm_color = self.__find_insertion_zone()
+
         # Character data structure initialization
         # and first character render
         character = {
@@ -466,6 +505,8 @@ class Environment:
         self.__characters.append(character)
         self.__characters_reset.append(copy.deepcopy(character))
 
+        x = x_mtrx * cell_size
+        y = y_mtrx * cell_size
         self.__screen.blit(character_sprite, (x + 2, y + 2))
 
         # Render environment
@@ -545,8 +586,8 @@ class Environment:
         rewards = self.__update_characters()
 
         # Reset rewards for next update
-        for character in self.__characters:
-            character['reward'] = 0
+        for character_id in range(len(self.__characters)):
+            self.__characters[character_id]['reward'] = 0
 
         pygame.display.flip()
         return rewards

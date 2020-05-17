@@ -4,17 +4,22 @@
 # File : utils.py
 #
 # @ start date          16 05 2020
-# @ last update         16 05 2020
+# @ last update         17 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
 import re, json
+from PIL import Image
+import numpy as np
 
 #---------------------------------
 # Constants
 #---------------------------------
+ACTIONS = ('up', 'down', 'left', 'right') # 'stay'
+IMG_SIZE = (100, 100)
+
 CONFIG_FIELDS = {
     # Dimensionality
     'grid_dim': 'int_tuple', # int_tuple is (int > 1, int > 1)
@@ -132,3 +137,11 @@ def config_field_check(field, value):
         raise ValueError('Unknown data_type of \'{}\''.format(field))
 
     return is_valid, f_transform
+
+def perceive(snap):
+    image = Image.fromarray(snap, 'RGB').convert('L').resize(IMG_SIZE)
+
+    # Convert to a numpy array
+    return np.asarray(
+        image.getdata(), dtype=np.uint8
+    ).reshape(image.size[1], image.size[0])

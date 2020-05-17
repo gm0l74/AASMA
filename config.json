@@ -1,6 +1,6 @@
 {
-  "grid_dim": "600,600",
-  "cell_size": 60,
+  "grid_dim": "100,100",
+  "cell_size": 10,
 
   "mountain": 0.05,
   "green": 0.45,
@@ -15,7 +15,7 @@
   "search-time": 0,
 
   "invalid_pos": -10,
-  "green_dtct": 0,
+  "green_dtct": -1,
   "yellow_dtct": 20,
   "red_dtct": 25
 }

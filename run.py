@@ -17,27 +17,7 @@ from PIL import Image
 
 import environment, pygame
 import agent as Agent
-
-#---------------------------------
-# Constants
-#---------------------------------
-ACTIONS = ('up', 'down', 'left', 'right', 'stay')
-IMG_SIZE = (600, 600)
-
-def perceive(snap):
-    # Convert to gray-scale
-    image = Image.fromarray(snap, 'RGB').convert('L').resize(IMG_SIZE)
-
-    # Convert to a numpy array
-    return np.asarray(
-        image.getdata(), dtype=np.uint8
-    ).reshape(image.size[1], image.size[0])
-
-def state(last, observation):
-    # Next state is composed by:
-    # - last 3 snapshots of the previous state
-    # - new observation
-    return np.append(last[1:], [observation], axis=0)
+import utils
 
 #---------------------------------
 # Execute
@@ -55,11 +35,11 @@ if __name__ == '__main__':
     if agent_type == 'drl':
         import grabber
         agent = Agent.DeepQAgent(
-            ACTIONS, ['./policy_net.h5', './value_net.h5']
+            utils.ACTIONS, ['./policy_net.h5', './value_net.h5']
         )
 
-        snapshot = perceive(grabber.snapshot())
-        state = [snapshot for _ in range(4)]
+        snapshot = utils.perceive(grabber.snapshot())
+        state = [snapshot for _ in range(7)]
 
     clock = pygame.time.Clock()
     RUN = True
@@ -70,15 +50,15 @@ if __name__ == '__main__':
                 RUN = False
 
         if agent_type == 'random':
-            action = np.random.choice(ACTIONS)
+            action = np.random.choice(utils.ACTIONS)
         elif agent_type == 'drl':
             # Get the current state
-            snapshot = perceive(grabber.snapshot())
+            snapshot = utils.perceive(grabber.snapshot())
             state = np.append(state[1:], [snapshot], axis=0)
 
             # Select an action using purely exploitation
             # print(agent.predict(state))
-            action = ACTIONS[agent.predict(state)]
+            action = utils.ACTIONS[agent.predict(state)]
             print("[{}] {}".format(
                 datetime.now().strftime('%H:%M:%S'), action
             ))

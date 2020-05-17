@@ -24,7 +24,7 @@ from tensorflow.keras.layers import Flatten, Dense
 #---------------------------------
 # Constants
 #---------------------------------
-IMG_SIZE = (600, 600)
+IMG_SIZE = (100, 100)
 
 #---------------------------------
 # class DeepQNetwork
@@ -64,24 +64,24 @@ class DeepQNetwork:
 
         # Convolution layers (stack three of them)
         self.__model.add(Conv2D(
-            16, 4, strides=(4, 4), padding='valid',
+            32, 8, strides=(4, 4), padding='valid',
             activation='relu',
             input_shape=self.__input_shape
         ))
         self.__model.add(Conv2D(
-            32, 2, strides=(2, 2),
+            64, 4, strides=(2, 2),
             padding='valid',
             activation='relu'
         ))
-        # self.__model.add(Conv2D(
-        #     64, 3, strides=(1, 1),
-        #     padding='valid',
-        #     activation='relu'
-        # ))
-        #self.__model.add(MaxPool2D((2, 2)))
+        self.__model.add(Conv2D(
+            64, 3, strides=(1, 1),
+            padding='valid',
+            activation='relu'
+        ))
 
         # Flatten and Fully connected
         self.__model.add(Flatten())
+        self.__model.add(Dense(256, activation='relu'))
         self.__model.add(Dense(128, activation='relu'))
         self.__model.add(Dense(n_actions))
 
@@ -104,7 +104,7 @@ class DeepQNetwork:
             # Generate inputs and targets
             for datapoint in batch:
                 x_train.append(
-                    datapoint['source'].astype(np.float64).reshape(1, 600, 600, 4)
+                    datapoint['source'].astype(np.float64).reshape(1, 100, 100, 7)
                 )
 
                 # Obtain the q value of the state
@@ -142,7 +142,7 @@ class DeepQNetwork:
             if not isinstance(data, np.ndarray):
                 raise ValueError('\'data\' must be np.array')
 
-            data = data.astype(np.float64).reshape(1, 600, 600, 4)
+            data = data.astype(np.float64).reshape(1, 100, 100, 7)
             return self.__model.predict(data)[0]
 
     def load(self, filename):
@@ -191,12 +191,12 @@ class DeepQAgent:
 
         # Create PolicyNet
         self.__PolicyNet = DeepQNetwork(
-            self.actions, (600, 600, 4), load=load[0]
+            self.actions, (100, 100, 7), load=load[0]
         )
 
         # Create ValueNet
         self.__ValueNet = DeepQNetwork(
-            self.actions, (600, 600, 4), load=load[1]
+            self.actions, (100, 100, 7), load=load[1]
         )
 
         # Reset value network
@@ -278,3 +278,155 @@ class DeepQAgent:
     def save_progress(self):
         self.__ValueNet.save('value_net.h5')
         self.__PolicyNet.save('policy_net.h5')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# #!/usr/bin/env python3
+# #---------------------------------
+# # AASMA Single Thread
+# # File : agent.py
+# #
+# # @ start date          16 05 2020
+# # @ last update         17 05 2020
+# #---------------------------------
+#
+# #---------------------------------
+# # Imports
+# #---------------------------------
+# import numpy as np
+#
+# from tensorflow.keras.models import Sequential, load_model
+# from tensorflow.keras.layers import Conv2D, MaxPooling2D
+# from tensorflow.keras.layers import Flatten, Dropout, Dense
+#
+# #---------------------------------
+# # class DeepQNetwork
+# #---------------------------------
+# class DeepQNetwork:
+#     def __init__(self, actions, input_shape, load_file=None):
+#         self.__n_actions = len(actions)
+#         self.__input_shape = input_shape
+#
+#         self.__model = None
+#         if load is None:
+#             self.__build() ; self.__compile()
+#             self.summarize()
+#         else:
+#             self.__load(load_file)
+#
+#     def summarize(self):
+#         self.__model.summary()
+#
+#     def train(self, batch, ValueNet):
+#         if self.__model is None:
+#             raise ValueError('Model hasn\'t been built')
+#         else:
+#             # TODO
+#             pass
+#
+#     def predict(self, data):
+#         if self.__model is None:
+#             raise ValueError('Model hasn\'t been built')
+#         else:
+#             # TODO
+#             pass
+#
+#     def __build(self):
+#         print(" => Building model")
+#         self.__model = Sequential()
+#
+#         # Convolution layers
+#         self.__model.add(Conv2D(
+#             64, 5, strides=(2, 2),
+#             activation='relu',
+#             input_shape=self.__input_shape
+#         ))
+#         self.__model.add(BatchNormalization(
+#             momentum=0.15, axis=-1
+#         ))
+#         self.__model.add(Conv2D(
+#             128, 5, strides=(2, 2),
+#             activation='relu'
+#         ))
+#         self.__model.add(BatchNormalization(
+#             momentum=0.15, axis=-1
+#         ))
+#         self.__model.add(Conv2D(
+#             128, 5, strides=(2, 2),
+#             activation='relu'
+#         ))
+#         self.__model.add(BatchNormalization(
+#             momentum=0.15, axis=-1
+#         ))
+#
+#         # Flatten and fully connected
+#         self.__model.add(Flatten())
+#
+#         self.__model.add(Dense(512, activation='relu'))
+#         self.__model.add(Dropout(0.1))
+#         self.__model.add(Dense(256, activation='relu'))
+#         self.__model.add(Dropout(0.1))
+#
+#         self.__model.add(Dense(self.__n_actions))
+#
+#     def __compile(self):
+#         if self.__model is None:
+#             raise ValueError('Model hasn\'t been built')
+#         else:
+#             print(" => Compiling model")
+#             self.__model.compile(
+#                 loss='mse',
+#                 optimizer='rmsprop', metrics=['accuracy']
+#             )
+#
+#     def __save(self, filename):
+#         print(" => Saving model to {}...".format(filename))
+#         self.__model.save(filename)
+#
+#     def __save_weights(self, filename):
+#         print(" => Saving weights to {}...".format(filename))
+#         self.__model.save_weights(filename)
+#
+#     def __load(self, filename):
+#         print(" => Loading model from {}...".format(filename))
+#         try:
+#             self.__model = load_model(filename)
+#         except:
+#             raise ValueError("FileIO exception")
+#
+#     def __load_weights(self, filename):
+#         print(" => Loading weights from {}...".format(filename))
+#         try:
+#             self.__model.load_weights(filename)
+#         except:
+#             raise ValueError("FileIO exception")
+#
+# #---------------------------------
+# # class DeepQAgent
+# #---------------------------------
+# # TODO

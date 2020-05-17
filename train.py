@@ -10,42 +10,24 @@
 #---------------------------------
 # Imports
 #---------------------------------
-import environment, agent
-import pygame
 import atexit
-from PIL import Image
-import numpy as np
+import pygame
 
+import numpy as np
 import matplotlib.pyplot as plt
 
-#---------------------------------
-# Constants
-#---------------------------------
-AGENT_TYPE = 'RANDOMNESS'
-ACTIONS = ('up', 'down', 'left', 'right', 'stay')
-IMG_SIZE = (600, 600)
+import environment, agent
+import utils
 
+#---------------------------------
+# Training Parameters
+#---------------------------------
 # Training parameters
 N_EPISODES = 150
-MAX_EPISODE_LENGTH = 200
-UPDATE_FREQUENCY = 4
+MAX_EPISODE_LENGTH = 20
+UPDATE_FREQUENCY = 7
 VALUENET_UPDATE_FREQ = 30
 REPLAY_START_SIZE = 3
-
-def perceive(snap):
-    # Convert to gray-scale
-    image = Image.fromarray(snap, 'RGB').convert('L').resize(IMG_SIZE)
-
-    # Convert to a numpy array
-    return np.asarray(
-        image.getdata(), dtype=np.uint8
-    ).reshape(image.size[1], image.size[0])
-
-def get_next_state(last, observation):
-    # Next state is composed by:
-    # - last 3 snapshots of the previous state
-    # - new observation
-    return np.append(last[1:], [observation], axis=0)
 
 #---------------------------------
 # Execute
@@ -58,7 +40,7 @@ if __name__ == '__main__':
     import grabber
 
     # Init the deep learning model
-    agent = agent.DeepQAgent(ACTIONS)
+    agent = agent.DeepQAgent(utils.ACTIONS)
 
     # Weight file saving
     atexit.register(agent.save_progress)
@@ -70,17 +52,17 @@ if __name__ == '__main__':
         print("EPISODE {}/{}".format(episode, N_EPISODES - 1))
 
         # Deep Learning Training
-        # Observe reward and init first state
-        observation = perceive(grabber.snapshot())
-        plt.imshow(observation)
-        plt.show()
+        env.reset()
+
+        observation = utils.perceive(grabber.snapshot())
+        # plt.imshow(observation)
+        # plt.show()
 
         # Init state with the same observations
-        state = np.array([ observation for _ in range(4) ])
+        state = np.array([ observation for _ in range(7) ])
 
         # Episode loop
         episode_step = 0
-        env.reset()
 
         while episode_step < MAX_EPISODE_LENGTH:
             # Handle exit event
@@ -92,11 +74,11 @@ if __name__ == '__main__':
             action = agent.get_action(np.asarray([state]))
 
             # Make the action
-            env.move_character(0, ACTIONS[action])
+            env.move_character(0, utils.ACTIONS[action])
             [reward] = env.update()
 
-            observation = perceive(grabber.snapshot())
-            next_state = get_next_state(state, observation)
+            observation = utils.perceive(grabber.snapshot())
+            next_state = np.append(state[1:], [observation], axis=0)
 
             # Clip the reward
             clipped_reward = reward
@@ -128,7 +110,7 @@ if __name__ == '__main__':
             state = next_state
 
             episode_step += 1
-            print(episode_step, ACTIONS[action], reward)
+            print(episode_step, utils.ACTIONS[action], reward)
             clock.tick(15)
 
         episode += 1
