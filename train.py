@@ -24,9 +24,9 @@ ACTIONS = ('up', 'down', 'left', 'right', 'stay')
 IMG_SIZE = (600, 600)
 
 # Training parameters
-MAX_EPISODE_LENGTH = 1000
+MAX_EPISODE_LENGTH = 200
 UPDATE_FREQUENCY = 20
-VALUENET_UPDATE_FREQ = 10e3
+VALUENET_UPDATE_FREQ = 500
 REPLAY_START_SIZE = 3
 
 def perceive(snap):
@@ -62,8 +62,10 @@ if __name__ == '__main__':
 
     clock = pygame.time.Clock()
     RUN = True
-    episode = 0 ; N_EPISODES = 1000
+    episode = 0 ; N_EPISODES = 360
     while RUN and episode < N_EPISODES:
+        print("EPISODE {}/{}".format(episode, N_EPISODES - 1))
+
         # DEEP LEARNING TRAINING
         # Observe reward and init first state
         observation = perceive(grabber.snapshot())
@@ -75,6 +77,8 @@ if __name__ == '__main__':
 
         # Episode loop
         episode_step = 0
+        env.reset()
+
         while episode_step < MAX_EPISODE_LENGTH:
             # Handle exit event
             for event in pygame.event.get():
@@ -122,6 +126,7 @@ if __name__ == '__main__':
             state = next_state
 
             episode_step += 1
+            print(episode_step, ACTIONS[action], reward)
             clock.tick(15)
 
         episode += 1

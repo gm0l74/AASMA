@@ -10,7 +10,7 @@
 #---------------------------------
 # Imports
 #---------------------------------
-import os, pygame
+import os, pygame, copy
 import numpy as np
 from random import randint
 
@@ -57,6 +57,7 @@ class Environment:
 
         # Character operation
         self.__characters = []
+        self.__characters_reset = []
 
         self.__build()
 
@@ -141,7 +142,7 @@ class Environment:
             self.__env_mtrx.append(row_repr)
 
         # For future re-renders
-        self.__reset_env_matrx = self.__env_mtrx.copy()
+        self.__reset_env_matrx = copy.deepcopy(self.__env_mtrx)
 
     def __draw_heatmap_tile(self, y, x, color):
         cell_size = self.__config['cell_size']
@@ -300,7 +301,7 @@ class Environment:
 
             # Check if a character has moved
             if x != x_prev or y != y_prev:
-                if curr_search_time >= self.__config['search-time']:
+                if curr_search_time >= reset_time:
                     # Character has searched the area. Now it's green!
                     try:
                         character['reward'] += self.__config[hm_color + '_dtct']
@@ -335,7 +336,7 @@ class Environment:
                 character['curr_search_time'] += 1
 
                 # Check if heatmap cell color can be updated
-                if curr_search_time >= self.__config['search-time']:
+                if curr_search_time >= reset_time:
                     try:
                         hm_color = character['hm_color']
                         character['reward'] += self.__config[hm_color + '_dtct']
@@ -374,12 +375,16 @@ class Environment:
     # --- Public functions ---
     def reset(self):
         # Reset matrix representation
-        self.__env_matrx = self.__reset_env_matrx.copy()
+        self.__env_matrx = copy.deepcopy(self.__reset_env_matrx)
 
         # Load required sprites
         cell_size = self.__config['cell_size']
         mountain_sprite = pygame.transform.scale(
             pygame.image.load(MOUNTAIN_SPRITE_FILEPATH),
+            (cell_size - 2, cell_size - 2)
+        )
+        character_sprite = pygame.transform.scale(
+            pygame.image.load(CHARACTER_SPRITE_FILEPATH),
             (cell_size - 2, cell_size - 2)
         )
 
@@ -394,6 +399,19 @@ class Environment:
                         mountain_sprite,
                         (x * cell_size + 2, y * cell_size + 2)
                     )
+
+        # Reset characters
+        for character_id in range(len(self.__characters)):
+            self.__characters[character_id] = \
+                copy.deepcopy(self.__characters_reset[character_id])
+
+            x = self.__characters[character_id]['x']
+            y = self.__characters[character_id]['y']
+
+            self.__screen.blit(
+                character_sprite,
+                (x * cell_size + 2, y * cell_size + 2)
+            )
 
         # Re-render first render
         pygame.display.flip()
@@ -435,7 +453,7 @@ class Environment:
 
         # Character data structure initialization
         # and first character render
-        self.__characters.append({
+        character = {
             'reward': 0,
             'curr_search_time': 0,
             'x': x_mtrx,
@@ -443,7 +461,10 @@ class Environment:
             'x_prev': x_mtrx,
             'y_prev': y_mtrx,
             'hm_color': hm_color
-        })
+        }
+
+        self.__characters.append(character)
+        self.__characters_reset.append(copy.deepcopy(character))
 
         self.__screen.blit(character_sprite, (x + 2, y + 2))
 

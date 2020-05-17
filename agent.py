@@ -43,7 +43,7 @@ class DeepQNetwork:
             self.__build() ; self.__compile()
         else:
             # Load previously made model
-            self.__load(load)
+            self.load(load)
 
     @property
     def model(self):
@@ -172,7 +172,7 @@ class DeepQNetwork:
 # class DeepQAgent
 #---------------------------------
 class DeepQAgent:
-    def __init__(self, actions):
+    def __init__(self, actions, load=[None, None]):
         self.actions = actions
 
         # Parameters
@@ -188,12 +188,12 @@ class DeepQAgent:
 
         # Create PolicyNet
         self.__PolicyNet = DeepQNetwork(
-            self.actions, (600, 600, 4)
+            self.actions, (600, 600, 4), load=load[0]
         )
 
         # Create ValueNet
         self.__ValueNet = DeepQNetwork(
-            self.actions, (600, 600, 4)
+            self.actions, (600, 600, 4), load=load[1]
         )
 
         # Reset value network
@@ -206,6 +206,9 @@ class DeepQAgent:
     @property
     def training_count(self):
         return self.__training_count
+
+    def predict(self, snapshot):
+        return np.argmax(self.__PolicyNet.predict(snapshot))
 
     def get_action(self, snapshot, pick_random=False):
         is_random = random() < self.__epsilon
