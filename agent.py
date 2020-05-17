@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 #---------------------------------
-# AASMA - Agent
-# File : drn.py
+# AASMA Single Thread
+# File : agent.py
 #
-# @ start date          22 04 2020
-# @ last update         15 05 2020
+# @ start date          16 05 2020
+# @ last update         16 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -13,12 +13,8 @@
 from datetime import datetime
 from PIL import Image
 import numpy as np
-import zmq, time
-import atexit
+import time
 from random import random, randint, randrange
-
-from aasma.agent.models.AgentModel import AgentModel
-import aasma.agent.grabber as grabber
 
 # Keras nn components
 from tensorflow.keras.models import Sequential, load_model
@@ -28,7 +24,6 @@ from tensorflow.keras.layers import Conv2D, Flatten, Dense
 # Constants
 #---------------------------------
 IMG_SIZE = (600, 600)
-FPS = 9
 
 #---------------------------------
 # class DeepQNetwork
@@ -182,7 +177,7 @@ class DeepQAgent:
 
         # Parameters
         self.__epsilon = 1
-        self.__epsilon_decrease_value = 0.99
+        self.__epsilon_decrease_value = 0.001
         self.__min_epsilon = 0.1
         self.__replay_mem_size = 1024
         self.__mini_batch_size = 32
@@ -277,136 +272,3 @@ class DeepQAgent:
     def save_progress(self):
         self.__ValueNet.save('value_net.h5')
         self.__PolicyNet.save('policy_net.h5')
-
-#---------------------------------
-# class AgentController
-#---------------------------------
-class AgentController(AgentModel):
-    def __init__(self, actions):
-        super(AgentController, self).__init__(actions)
-
-        self.__agent = DeepQAgent(actions)
-        atexit.register(self.__agent.save_progress)
-        self.__actions = actions
-
-        # Parameters
-        self.__max_episode_length = 1000
-        self.__update_frequency = 20
-        self.__valueNet_update_freq = 10e3
-
-        # Min n of transitions to store in the replay memory before training
-        self.__replay_start_size = 3
-
-    def perceive(self, snap):
-        # Convert to gray-scale
-        image = Image.fromarray(snap, 'RGB').convert('L').resize(IMG_SIZE)
-
-        # Convert to a numpy array
-        self.__last_snapshot = np.asarray(
-            image.getdata(), dtype=np.uint8
-        ).reshape(image.size[1], image.size[0])
-
-        return self.__last_snapshot
-
-    def make_action(self):
-        # Always exploit
-        # Don't use while training
-        return np.argmax(self.__agent.predict(self.__last_snapshot))
-
-    def __get_next_state(self, last, observation):
-        # Next state is composed by:
-        # - last 3 snapshots of the previous state
-        # - new observation
-        return np.append(last[1:], [observation], axis=0)
-
-    def train(self):
-        # Connect to env communicator
-        ipc = zmq.Context().socket(zmq.REQ)
-
-        ipc.setsockopt(zmq.LINGER, 0)
-        ipc.setsockopt(zmq.AFFINITY, 1)
-        ipc.setsockopt(zmq.RCVTIMEO, 3000) # 3 seconds timeout
-
-        ipc.connect("tcp://localhost:5555")
-        ipc.send(b"create")
-        try:
-            agent_id = ipc.recv().decode()
-            if agent_id == 'nack':
-                raise ValueError("Couldn't spawn agent")
-        except:
-            exit()
-
-        # Training loop
-        episode = 0 ; N_EPISODES = 1000
-        while episode < N_EPISODES:
-            # Observe reward and init first state
-            observation = self.perceive(grabber.snapshot())
-
-            # Init score system
-            score = 0
-            # Init state with the same observations
-            state = np.array([ observation for _ in range(4) ])
-
-            # Episode loop
-            episode_step = 0
-            while episode_step < self.__max_episode_length:
-
-                # Select an action using the agent
-                action = self.__agent.get_action(np.asarray([state]))
-
-                # Send the selected action...
-                query = "move,{},{}".format(agent_id, self.actions[action])
-                print(query)
-                ipc.send(query.encode())
-
-                #  ... and get the reward
-                try:
-                    reward = float(ipc.recv().decode())
-                except:
-                    # Communicator disbanded
-                    exit()
-
-                time.sleep(1/FPS)
-
-                observation = self.perceive(grabber.snapshot())
-                next_state = self.__get_next_state(state, observation)
-
-                # Clip the reward
-                clipped_reward = np.clip(reward, -1, 1)
-                # Store transition in replay memory
-                self.__agent.add_experience(
-                    np.asarray([state]),
-                    action,
-                    clipped_reward,
-                    np.asarray([next_state])
-                )
-
-                score += reward
-
-                # Train the agent
-                do_update = episode_step % self.__update_frequency == 0
-                exp_check = len(self.__agent.experiences) >= self.__replay_start_size
-
-                if do_update and exp_check:
-                    self.__agent.train()
-
-                    # Every now and then, update ValueNet
-                    if self.__agent.training_count % self.__valueNet_update_freq == 0:
-                        self.__agent.reset_ValueNet()
-
-                # Linear epsilon annealing
-                if exp_check:
-                    self.__agent.update_epsilon()
-
-                # Prepare for the next iteration
-                state = next_state
-
-                episode_step += 1
-            episode += 1
-
-#---------------------------------
-# Execute
-#---------------------------------
-if __name__ == '__main__':
-    actions = ('up', 'down', 'left', 'right', 'stay')
-    AgentController(actions).train()

@@ -1,0 +1,1 @@
+left,0stay,-3up,-3stay,-3up,-3left,-8down,-3stay,-3down,-3down,-3right,-8stay,-3left,-8up,-3right,-3left,-3right,-3stay,-3down,-8down,-8right,3

@@ -10,17 +10,12 @@
   "green-yellow": "75,225",
   "yellow-red": "225,300",
   "red-fire": "900,1350",
-  "fire-yellow": "450,600",
+  "fire-yellow": "400,600",
 
   "search-time": 0,
 
-  "sc_invalid_pos": -1,
-  "sc_green__dtct": 0,
-  "sc_yellow__dtct": 3,
-  "sc_red__dtct": 1,
-
-  "sc_green": 0,
-  "sc_yellow": -1,
-  "sc_red": -3,
-  "sc_fire": -10
+  "invalid_pos": -5,
+  "green_dtct": -3,
+  "yellow_dtct": 3,
+  "red_dtct": 5
 }
