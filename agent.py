@@ -4,7 +4,7 @@
 # File : agent.py
 #
 # @ start date          16 05 2020
-# @ last update         16 05 2020
+# @ last update         17 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -18,7 +18,8 @@ from random import random, randint, randrange
 
 # Keras nn components
 from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Conv2D, Flatten, Dense
+from tensorflow.keras.layers import Conv2D, MaxPool2D
+from tensorflow.keras.layers import Flatten, Dense
 
 #---------------------------------
 # Constants
@@ -41,6 +42,7 @@ class DeepQNetwork:
         if load is None:
             # Build and compile the model
             self.__build() ; self.__compile()
+            self.summarize()
         else:
             # Load previously made model
             self.load(load)
@@ -62,24 +64,25 @@ class DeepQNetwork:
 
         # Convolution layers (stack three of them)
         self.__model.add(Conv2D(
-            32, 8, strides=(4, 4), padding='valid',
+            16, 4, strides=(4, 4), padding='valid',
             activation='relu',
             input_shape=self.__input_shape
         ))
         self.__model.add(Conv2D(
-            64, 4, strides=(2, 2),
+            32, 2, strides=(2, 2),
             padding='valid',
             activation='relu'
         ))
-        self.__model.add(Conv2D(
-            64, 3, strides=(1, 1),
-            padding='valid',
-            activation='relu'
-        ))
+        # self.__model.add(Conv2D(
+        #     64, 3, strides=(1, 1),
+        #     padding='valid',
+        #     activation='relu'
+        # ))
+        #self.__model.add(MaxPool2D((2, 2)))
 
         # Flatten and Fully connected
         self.__model.add(Flatten())
-        self.__model.add(Dense(512, activation='relu'))
+        self.__model.add(Dense(128, activation='relu'))
         self.__model.add(Dense(n_actions))
 
     def __compile(self):
@@ -140,7 +143,7 @@ class DeepQNetwork:
                 raise ValueError('\'data\' must be np.array')
 
             data = data.astype(np.float64).reshape(1, 600, 600, 4)
-            return self.model.predict(data, batch_size=1)[0]
+            return self.__model.predict(data)[0]
 
     def load(self, filename):
         print(" => Loading model...")

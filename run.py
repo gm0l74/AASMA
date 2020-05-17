@@ -77,6 +77,7 @@ if __name__ == '__main__':
             state = np.append(state[1:], [snapshot], axis=0)
 
             # Select an action using purely exploitation
+            # print(agent.predict(state))
             action = ACTIONS[agent.predict(state)]
             print("[{}] {}".format(
                 datetime.now().strftime('%H:%M:%S'), action

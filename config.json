@@ -2,20 +2,20 @@
   "grid_dim": "600,600",
   "cell_size": 60,
 
-  "mountain": 0.1,
-  "green": 0.60,
-  "yellow": 0.25,
-  "red": 0.05,
+  "mountain": 0.05,
+  "green": 0.45,
+  "yellow": 0.35,
+  "red": 0.15,
 
-  "green-yellow": "75,225",
-  "yellow-red": "225,300",
+  "green-yellow": "50,100",
+  "yellow-red": "100,200",
   "red-fire": "900,1350",
   "fire-yellow": "400,600",
 
   "search-time": 0,
 
-  "invalid_pos": -5,
-  "green_dtct": -3,
-  "yellow_dtct": 3,
-  "red_dtct": 5
+  "invalid_pos": -10,
+  "green_dtct": 0,
+  "yellow_dtct": 20,
+  "red_dtct": 25
 }

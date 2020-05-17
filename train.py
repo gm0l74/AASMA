@@ -24,9 +24,10 @@ ACTIONS = ('up', 'down', 'left', 'right', 'stay')
 IMG_SIZE = (600, 600)
 
 # Training parameters
+N_EPISODES = 150
 MAX_EPISODE_LENGTH = 200
-UPDATE_FREQUENCY = 20
-VALUENET_UPDATE_FREQ = 500
+UPDATE_FREQUENCY = 4
+VALUENET_UPDATE_FREQ = 30
 REPLAY_START_SIZE = 3
 
 def perceive(snap):
@@ -62,16 +63,14 @@ if __name__ == '__main__':
 
     clock = pygame.time.Clock()
     RUN = True
-    episode = 0 ; N_EPISODES = 360
+    episode = 0
     while RUN and episode < N_EPISODES:
         print("EPISODE {}/{}".format(episode, N_EPISODES - 1))
 
-        # DEEP LEARNING TRAINING
+        # Deep Learning Training
         # Observe reward and init first state
         observation = perceive(grabber.snapshot())
 
-        # Init score system
-        score = 0
         # Init state with the same observations
         state = np.array([ observation for _ in range(4) ])
 
@@ -96,7 +95,7 @@ if __name__ == '__main__':
             next_state = get_next_state(state, observation)
 
             # Clip the reward
-            clipped_reward = np.clip(reward, -1, 1)
+            clipped_reward = reward
             # Store transition in replay memory
             agent.add_experience(
                 np.asarray([state]),
@@ -104,8 +103,6 @@ if __name__ == '__main__':
                 clipped_reward,
                 np.asarray([next_state])
             )
-
-            score += reward
 
             # Train the agent
             do_update = episode_step % UPDATE_FREQUENCY == 0
@@ -116,6 +113,7 @@ if __name__ == '__main__':
 
                 # Every now and then, update ValueNet
                 if agent.training_count % VALUENET_UPDATE_FREQ == 0:
+                    print("Reset Value Net")
                     agent.reset_ValueNet()
 
             # Linear epsilon annealing
