@@ -23,12 +23,12 @@ import matplotlib.pyplot as plt
 #---------------------------------
 AGENT_TYPE = 'RANDOMNESS'
 ACTIONS = ('up', 'down', 'left', 'right', 'stay')
-IMG_SIZE = (600, 600)
+IMG_SIZE = (100, 100)
 
 # Training parameters
 N_EPISODES = 150
-MAX_EPISODE_LENGTH = 200
-UPDATE_FREQUENCY = 4
+MAX_EPISODE_LENGTH = 400
+UPDATE_FREQUENCY = 7
 VALUENET_UPDATE_FREQ = 30
 REPLAY_START_SIZE = 3
 
@@ -40,12 +40,6 @@ def perceive(snap):
     return np.asarray(
         image.getdata(), dtype=np.uint8
     ).reshape(image.size[1], image.size[0])
-
-def get_next_state(last, observation):
-    # Next state is composed by:
-    # - last 3 snapshots of the previous state
-    # - new observation
-    return np.append(last[1:], [observation], axis=0)
 
 #---------------------------------
 # Execute
@@ -70,17 +64,17 @@ if __name__ == '__main__':
         print("EPISODE {}/{}".format(episode, N_EPISODES - 1))
 
         # Deep Learning Training
-        # Observe reward and init first state
+        env.reset()
+
         observation = perceive(grabber.snapshot())
-        plt.imshow(observation)
-        plt.show()
+        # plt.imshow(observation)
+        # plt.show()
 
         # Init state with the same observations
-        state = np.array([ observation for _ in range(4) ])
+        state = np.array([ observation for _ in range(7) ])
 
         # Episode loop
         episode_step = 0
-        env.reset()
 
         while episode_step < MAX_EPISODE_LENGTH:
             # Handle exit event
@@ -96,7 +90,7 @@ if __name__ == '__main__':
             [reward] = env.update()
 
             observation = perceive(grabber.snapshot())
-            next_state = get_next_state(state, observation)
+            next_state = np.append(state[1:], [observation], axis=0)
 
             # Clip the reward
             clipped_reward = reward

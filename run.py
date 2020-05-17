@@ -22,7 +22,7 @@ import agent as Agent
 # Constants
 #---------------------------------
 ACTIONS = ('up', 'down', 'left', 'right', 'stay')
-IMG_SIZE = (600, 600)
+IMG_SIZE = (100, 100)
 
 def perceive(snap):
     # Convert to gray-scale
@@ -59,7 +59,7 @@ if __name__ == '__main__':
         )
 
         snapshot = perceive(grabber.snapshot())
-        state = [snapshot for _ in range(4)]
+        state = [snapshot for _ in range(7)]
 
     clock = pygame.time.Clock()
     RUN = True

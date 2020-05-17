@@ -24,7 +24,7 @@ from tensorflow.keras.layers import Flatten, Dense
 #---------------------------------
 # Constants
 #---------------------------------
-IMG_SIZE = (600, 600)
+IMG_SIZE = (100, 100)
 
 #---------------------------------
 # class DeepQNetwork
@@ -64,24 +64,24 @@ class DeepQNetwork:
 
         # Convolution layers (stack three of them)
         self.__model.add(Conv2D(
-            16, 4, strides=(4, 4), padding='valid',
+            32, 8, strides=(4, 4), padding='valid',
             activation='relu',
             input_shape=self.__input_shape
         ))
         self.__model.add(Conv2D(
-            32, 2, strides=(2, 2),
+            64, 4, strides=(2, 2),
             padding='valid',
             activation='relu'
         ))
-        # self.__model.add(Conv2D(
-        #     64, 3, strides=(1, 1),
-        #     padding='valid',
-        #     activation='relu'
-        # ))
-        #self.__model.add(MaxPool2D((2, 2)))
+        self.__model.add(Conv2D(
+            64, 3, strides=(1, 1),
+            padding='valid',
+            activation='relu'
+        ))
 
         # Flatten and Fully connected
         self.__model.add(Flatten())
+        self.__model.add(Dense(256, activation='relu'))
         self.__model.add(Dense(128, activation='relu'))
         self.__model.add(Dense(n_actions))
 
@@ -104,7 +104,7 @@ class DeepQNetwork:
             # Generate inputs and targets
             for datapoint in batch:
                 x_train.append(
-                    datapoint['source'].astype(np.float64).reshape(1, 600, 600, 4)
+                    datapoint['source'].astype(np.float64).reshape(1, 100, 100, 7)
                 )
 
                 # Obtain the q value of the state
@@ -142,7 +142,7 @@ class DeepQNetwork:
             if not isinstance(data, np.ndarray):
                 raise ValueError('\'data\' must be np.array')
 
-            data = data.astype(np.float64).reshape(1, 600, 600, 4)
+            data = data.astype(np.float64).reshape(1, 100, 100, 7)
             return self.__model.predict(data)[0]
 
     def load(self, filename):
@@ -191,12 +191,12 @@ class DeepQAgent:
 
         # Create PolicyNet
         self.__PolicyNet = DeepQNetwork(
-            self.actions, (600, 600, 4), load=load[0]
+            self.actions, (100, 100, 7), load=load[0]
         )
 
         # Create ValueNet
         self.__ValueNet = DeepQNetwork(
-            self.actions, (600, 600, 4), load=load[1]
+            self.actions, (100, 100, 7), load=load[1]
         )
 
         # Reset value network
