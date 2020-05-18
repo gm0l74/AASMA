@@ -586,9 +586,24 @@ class Environment:
         # ...and character movement
         rewards = self.__update_characters()
 
+        # Count colors to calculate general penalty
+        color_c = {'green': 0, 'yellow': 0, 'red': 0, 'fire': 0}
+
+        cell_size = self.__config['cell_size']
+        for x in range(0, self.__WINDOW_WIDTH // cell_size):
+            for y in range(0, self.__WINDOW_HEIGHT // cell_size):
+                color = self.__env_mtrx[y][x][0]
+                if color != 'mountain':
+                    color_c[color] += 1
+
         # Reset rewards for next update
         for character_id in range(len(self.__characters)):
             self.__characters[character_id]['reward'] = 0
 
+        penalty = color_c['green'] * self.__config['green_exst'] + \
+            color_c['yellow'] * self.__config['yellow_exst'] + \
+            color_c['red'] * self.__config['red_exst'] + \
+            color_c['fire'] * self.__config['fire_exst']
+
         pygame.display.flip()
-        return rewards
+        return rewards, penalty

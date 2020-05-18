@@ -4,7 +4,7 @@
 # File : utils.py
 #
 # @ start date          16 05 2020
-# @ last update         17 05 2020
+# @ last update         18 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -40,7 +40,11 @@ CONFIG_FIELDS = {
     'invalid_pos': 'int',
     'green_dtct': 'int',
     'yellow_dtct': 'int',
-    'red_dtct': 'int'
+    'red_dtct': 'int',
+    'green_exst': 'dec',
+    'yellow_exst': 'dec',
+    'red_exst': 'dec',
+    'fire_exst': 'dec'
 }
 
 #---------------------------------
@@ -125,6 +129,13 @@ def config_field_check(field, value):
                 is_valid = False
 
         f_transform = lambda x : int(x)
+    elif data_type == 'dec':
+        try:
+            float(value) ; is_valid = True
+        except:
+            is_valid = False
+
+        f_transform = lambda x : float(x)
     elif data_type == 'int_tuple':
         try:
             x, y = value.split(",")

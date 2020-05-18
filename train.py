@@ -18,12 +18,13 @@ from datetime import datetime
 
 import environment, agent
 import utils
+from tqdm import tqdm
 
 #---------------------------------
 # Training Parameters
 #---------------------------------
-N_EPISODES = 50
-MAX_EPISODE_LENGTH = 200
+N_EPISODES = 150
+MAX_EPISODE_LENGTH = 1000
 
 #---------------------------------
 # Execute
@@ -49,7 +50,8 @@ if __name__ == '__main__':
 
         in_episode_i = 0
         # Episode loop
-        while RUN and in_episode_i < MAX_EPISODE_LENGTH:
+        reward = 0
+        while reward > -20:
             # Handle exit event
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -60,7 +62,9 @@ if __name__ == '__main__':
             # Propagate the action to the environment
             env.move_character(0, utils.ACTIONS[action])
             # ... and get the reward of said action
-            reward = env.update()[0]
+            rewards, penalty = env.update()
+            reward = rewards[0] + penalty
+
             print('[{}]\t{}\t[{}]'.format(
                 datetime.now().strftime('%H:%M:%S'),
                 utils.ACTIONS[action], reward
@@ -70,11 +74,11 @@ if __name__ == '__main__':
             new_state = utils.perceive(grabber.snapshot())
 
             # Add this to the replay memory
-            dql_agent.add_memory(current_state, action, reward, new_state)
-
-            # Train models
+            dql_agent.add_memory(
+                current_state, action, reward, new_state,
+                reward <= -20
+            )
             dql_agent.replay()
-            dql_agent.target_train()
 
             current_state = new_state
 
@@ -83,6 +87,12 @@ if __name__ == '__main__':
                 dql_agent.save()
 
             in_episode_i += 1
+
+            if not RUN:
+                break
             clock.tick(15)
 
         episode_i += 1
+        dql_agent.target_train()
+
+    dql_agent.save()
