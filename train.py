@@ -18,13 +18,14 @@ from datetime import datetime
 
 import environment, agent
 import utils
-from tqdm import tqdm
+#from tqdm import tqdm
 
 #---------------------------------
 # Training Parameters
 #---------------------------------
-N_EPISODES = 150
-MAX_EPISODE_LENGTH = 1000
+N_EPISODES = 10000
+MAX_EPISODE_LENGTH = 10000
+MAX_NEG_REWARD = -35
 
 #---------------------------------
 # Execute
@@ -51,7 +52,7 @@ if __name__ == '__main__':
         in_episode_i = 0
         # Episode loop
         reward = 0
-        while reward > -20:
+        while reward > MAX_NEG_REWARD:
             # Handle exit event
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -76,7 +77,7 @@ if __name__ == '__main__':
             # Add this to the replay memory
             dql_agent.add_memory(
                 current_state, action, reward, new_state,
-                reward <= -20
+                reward <= MAX_NEG_REWARD
             )
             dql_agent.replay()
 

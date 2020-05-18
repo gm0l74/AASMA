@@ -24,7 +24,7 @@ PATH = os.path.realpath(__file__)
 PATH = PATH[:len(PATH) - 14]
 
 # Changes behavior of environment reset
-LOCK_RESET = True
+LOCK_RESET = False
 
 # Environemnt operation
 HEATMAP_COLORS = {
