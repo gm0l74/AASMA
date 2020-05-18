@@ -78,7 +78,7 @@ class DeepQAgent:
         )
         return model
 
-    def make_action(self, state, force=False):
+    def make_action(self, state, force=False, all_values= False):
         self.epsilon *= self.epsilon_decay
         self.epsilon = max(self.epsilon_min, self.epsilon)
         print("e ", self.epsilon)
@@ -87,7 +87,10 @@ class DeepQAgent:
             return np.random.choice(len(utils.ACTIONS))
 
         state = state.reshape((1, *state.shape))
-        return np.argmax(self.model.predict(state)[0])
+        if all_values:
+            return self.model.predict(state)[0]
+        else:
+            return np.argmax(self.model.predict(state)[0])
 
     def add_memory(self, state, action, reward, new_state, done):
         self.memory.append([state, action, reward, new_state, done])

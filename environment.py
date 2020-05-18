@@ -63,6 +63,9 @@ class Environment:
         self.__characters = []
         self.__characters_reset = []
 
+        #Number of ingnitions
+        self.__number_ignitions = 0
+
         self.__build()
 
     # --- Private functions ---
@@ -278,6 +281,7 @@ class Environment:
                     self.__draw_heatmap_tile(y, x, color)
 
                     if color == 'fire':
+                        self.__number_ignitions +=1
                         self.__screen.blit(fire_sprite, (x + 2, y + 2))
 
                     # Update cell of matrix representation
@@ -595,7 +599,6 @@ class Environment:
                 color = self.__env_mtrx[y][x][0]
                 if color != 'mountain':
                     color_c[color] += 1
-
         # Reset rewards for next update
         for character_id in range(len(self.__characters)):
             self.__characters[character_id]['reward'] = 0
@@ -607,3 +610,6 @@ class Environment:
 
         pygame.display.flip()
         return rewards, penalty
+
+    def get_ingnition_count(self):
+        return self.__number_ignitions
