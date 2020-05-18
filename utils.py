@@ -144,4 +144,4 @@ def perceive(snap):
     # Convert to a numpy array
     return np.asarray(
         image.getdata(), dtype=np.uint8
-    ).reshape(image.size[1], image.size[0])
+    ).reshape(image.size[1], image.size[0], 1)

@@ -4,429 +4,114 @@
 # File : agent.py
 #
 # @ start date          16 05 2020
-# @ last update         17 05 2020
+# @ last update         18 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-from datetime import datetime
-from PIL import Image
 import numpy as np
-import time
-from random import random, randint, randrange
+import random
+from collections import deque
 
-# Keras nn components
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Conv2D, MaxPool2D
-from tensorflow.keras.layers import Flatten, Dense
+import utils
 
-#---------------------------------
-# Constants
-#---------------------------------
-IMG_SIZE = (100, 100)
-
-#---------------------------------
-# class DeepQNetwork
-#---------------------------------
-class DeepQNetwork:
-    def __init__(self, actions, input_shape, load=None):
-        self.actions = actions
-        self.__input_shape = input_shape
-
-        # Hyper Parameters
-        self.__gamma = 0.99
-        self.__mini_batch_size = 32
-
-        self.__model = None
-        if load is None:
-            # Build and compile the model
-            self.__build() ; self.__compile()
-            self.summarize()
-        else:
-            # Load previously made model
-            self.load(load)
-
-    @property
-    def model(self):
-        return self.__model
-
-    def summarize(self):
-        print(" => Summary")
-        self.__model.summary()
-
-    def __build(self):
-        n_actions = len(self.actions)
-
-        # Build the neural net
-        print(" => Building model")
-        self.__model = Sequential()
-
-        # Convolution layers (stack three of them)
-        self.__model.add(Conv2D(
-            32, 8, strides=(4, 4), padding='valid',
-            activation='relu',
-            input_shape=self.__input_shape
-        ))
-        self.__model.add(Conv2D(
-            64, 4, strides=(2, 2),
-            padding='valid',
-            activation='relu'
-        ))
-        self.__model.add(Conv2D(
-            64, 3, strides=(1, 1),
-            padding='valid',
-            activation='relu'
-        ))
-
-        # Flatten and Fully connected
-        self.__model.add(Flatten())
-        self.__model.add(Dense(256, activation='relu'))
-        self.__model.add(Dense(128, activation='relu'))
-        self.__model.add(Dense(n_actions))
-
-    def __compile(self):
-        if self.__model is None:
-            raise ValueError('Model hasn\'t been built')
-        else:
-            print(" => Compiling model")
-            self.__model.compile(
-                loss='mse',
-                optimizer='rmsprop', metrics=['accuracy']
-            )
-
-    def train(self, batch, ValueNet):
-        if self.__model is None:
-            raise ValueError('Model hasn\'t been built')
-        else:
-            x_train, y_train = [], []
-
-            # Generate inputs and targets
-            for datapoint in batch:
-                x_train.append(
-                    datapoint['source'].astype(np.float64).reshape(1, 100, 100, 7)
-                )
-
-                # Obtain the q value of the state
-                next_state = datapoint['destination'].astype(np.float64)
-                next_q_value = np.max(ValueNet.predict(next_state))
-
-                y = list(self.predict(datapoint['source']))
-
-                # Calculate rewards
-                y[datapoint['action']] = datapoint['reward'] + \
-                    self.__gamma * next_q_value
-
-                y_train.append(y)
-
-            # Convert training lists to numpy arrays
-            x_train = np.asarray(x_train).squeeze()
-            y_train = np.asarray(y_train).squeeze()
-
-            hist = self.__model.fit(
-                x_train, y_train,
-                batch_size=self.__mini_batch_size,
-                epochs=1, verbose=0
-            )
-
-            hist = hist.history
-            cur_time = datetime.now().strftime("%H:%M:%S")
-            print("[{}] loss {} | acc {}".format(
-                cur_time, hist['loss'][0] , hist['accuracy'][0]
-            ))
-
-    def predict(self, data):
-        if self.__model is None:
-            raise ValueError('Model hasn\'t been built')
-        else:
-            if not isinstance(data, np.ndarray):
-                raise ValueError('\'data\' must be np.array')
-
-            data = data.astype(np.float64).reshape(1, 100, 100, 7)
-            return self.__model.predict(data)[0]
-
-    def load(self, filename):
-        print(" => Loading model...")
-        print(" => File: {}".format(filename))
-        try:
-            self.__model = load_model(filename)
-        except:
-            raise ValueError("FileIO exception")
-
-    def load_weights(self, filename):
-        print(" => Loading weights...")
-        print(" => File: {}".format(filename))
-        try:
-            self.__model.load_weights(filename)
-        except:
-            raise ValueError("FileIO exception")
-
-    def save(self, filename):
-        print(" => Saving model...")
-        print(" => File: {}".format(filename))
-        self.__model.save(filename)
-
-    def save_weights(self, filename):
-        print(" => Saving weights...")
-        print(" => File: {}".format(filename))
-        self.__model.save_weights(filename)
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, Flatten
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.optimizers import Adam
 
 #---------------------------------
 # class DeepQAgent
 #---------------------------------
 class DeepQAgent:
-    def __init__(self, actions, load=[None, None]):
-        self.actions = actions
+    def __init__(self):
+        self.memory = deque(maxlen=2000)
 
-        # Parameters
-        self.__epsilon = 1
-        self.__epsilon_decrease_value = 0.001
-        self.__min_epsilon = 0.1
-        self.__replay_mem_size = 1024
-        self.__mini_batch_size = 32
+        self.gamma = 0.95
+        self.epsilon = 1.0
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.995
+        self.learning_rate = 0.005
+        self.tau = .125
 
-        # Replay memory
-        self.__experiences = []
-        self.__training_count = 0
+        # Spawn the policy and target networks
+        self.model = self.create_model()
+        self.target_model = self.create_model()
 
-        # Create PolicyNet
-        self.__PolicyNet = DeepQNetwork(
-            self.actions, (100, 100, 7), load=load[0]
+        # Information on the nn structure
+        self.model.summary()
+
+    def create_model(self):
+        # Build the model
+        model = Sequential()
+
+        # Convolution layers
+        model.add(Conv2D(
+            64, 5, strides=(2, 2),
+            activation='relu',
+            input_shape=(100, 100, 1)
+        ))
+        model.add(Conv2D(
+            128, 5, strides=(2, 2),
+            activation='relu'
+        ))
+        model.add(Conv2D(
+            128, 5, strides=(2, 2),
+            activation='relu'
+        ))
+
+        # Flatten and fully connected
+        model.add(Flatten())
+
+        model.add(Dense(512, activation='relu'))
+        model.add(Dense(len(utils.ACTIONS)))
+
+        # Compile the model
+        model.compile(
+            loss='mse',
+            optimizer=Adam(lr=self.learning_rate)
         )
+        return model
 
-        # Create ValueNet
-        self.__ValueNet = DeepQNetwork(
-            self.actions, (100, 100, 7), load=load[1]
-        )
+    def make_action(self, state):
+        self.epsilon *= self.epsilon_decay
+        self.epsilon = max(self.epsilon_min, self.epsilon)
 
-        # Reset value network
-        self.__ValueNet.model.set_weights(self.__PolicyNet.model.get_weights())
+        if np.random.random() < self.epsilon:
+            return np.random.choice(len(utils.ACTIONS))
 
-    @property
-    def experiences(self):
-        return self.__experiences
+        state = state.reshape((1, *state.shape))
+        return np.argmax(self.model.predict(state)[0])
 
-    @property
-    def training_count(self):
-        return self.__training_count
+    def add_memory(self, state, action, reward, new_state):
+        self.memory.append([state, action, reward, new_state])
 
-    def predict(self, snapshot):
-        return np.argmax(self.__PolicyNet.predict(snapshot))
+    def replay(self):
+        batch_size = 32
+        if len(self.memory) < batch_size:
+            return
 
-    def get_action(self, snapshot, pick_random=False):
-        is_random = random() < self.__epsilon
-        if pick_random or is_random:
-            return randint(0, len(self.actions) - 1)
-        else:
-            return np.argmax(self.__PolicyNet.predict(snapshot))
+        samples = random.sample(self.memory, batch_size)
+        for sample in samples:
+            state, action, reward, new_state = sample
 
-    def compute_q_max(self, snapshot):
-        # Given a snapshot, return the highest q-value
-        q_values = self.__PolicyNet.predict(snapshot)
+            state = state.reshape((1, *state.shape))
+            new_state = new_state.reshape((1, *new_state.shape))
 
-        # Error handle multiple actions with the same highest q
-        q_values = np.argwhere(q_values == np.max(q_values))
-        return random.choice(q_values)
+            target = self.target_model.predict(state)
 
-    def get_random_snapshot(self):
-        random_snap_id = randrange(0, len(self.__experiences))
-        return self.__experiences[random_snap_id]['source']
+            Q_future = max(self.target_model.predict(new_state)[0])
+            target[0][action] = reward + Q_future * self.gamma
 
-    def add_experience(self, source, action, reward, destination):
-        # Free older snapshots in replay memory
-        if len(self.__experiences) >= self.__replay_mem_size:
-            self.__experiences.pop(0)
+            self.model.fit(state, target, epochs=1, verbose=0)
 
-        self.__experiences.append({
-            'source': source,
-            'action': action,
-            'reward': reward,
-            'destination': destination
-        })
+    def target_train(self):
+        weights = self.model.get_weights()
+        target_weights = self.target_model.get_weights()
+        for i in range(len(target_weights)):
+            target_weights[i] = weights[i] * self.tau + target_weights[i] * (1 - self.tau)
+        self.target_model.set_weights(target_weights)
 
-    def sample_batch(self):
-        batch = []
-        for i in range(self.__mini_batch_size):
-            batch.append(self.__experiences[
-                randrange(0, len(self.__experiences))
-            ])
-
-        return np.asarray(batch)
-
-    def train(self):
-        self.__training_count += 1
-        self.__PolicyNet.train(self.sample_batch(), self.__ValueNet)
-
-    def update_epsilon(self):
-        # Gradually decrease the probability of picking a random action
-        if self.__epsilon - self.__epsilon_decrease_value > self.__min_epsilon:
-            self.__epsilon -= self.__epsilon_decrease_value
-        else:
-            self.__epsilon = self.__min_epsilon
-
-    def reset_ValueNet(self):
-        self.__ValueNet.model.set_weights(self.__PolicyNet.model.get_weights())
-
-    def image_to_numpy(self, snapshot):
-        snapshot = Image.fromarray(
-            snapshot, 'RGB'
-        ).convert('L').resize(IMG_SIZE)
-        self.snapshot = np.asarray(
-            snapshot.getdata(), dtype=np.uint8
-        ).reshape(image.size[1], image.size[0])
-
-    def save_progress(self):
-        self.__ValueNet.save('value_net.h5')
-        self.__PolicyNet.save('policy_net.h5')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# #!/usr/bin/env python3
-# #---------------------------------
-# # AASMA Single Thread
-# # File : agent.py
-# #
-# # @ start date          16 05 2020
-# # @ last update         17 05 2020
-# #---------------------------------
-#
-# #---------------------------------
-# # Imports
-# #---------------------------------
-# import numpy as np
-#
-# from tensorflow.keras.models import Sequential, load_model
-# from tensorflow.keras.layers import Conv2D, MaxPooling2D
-# from tensorflow.keras.layers import Flatten, Dropout, Dense
-#
-# #---------------------------------
-# # class DeepQNetwork
-# #---------------------------------
-# class DeepQNetwork:
-#     def __init__(self, actions, input_shape, load_file=None):
-#         self.__n_actions = len(actions)
-#         self.__input_shape = input_shape
-#
-#         self.__model = None
-#         if load is None:
-#             self.__build() ; self.__compile()
-#             self.summarize()
-#         else:
-#             self.__load(load_file)
-#
-#     def summarize(self):
-#         self.__model.summary()
-#
-#     def train(self, batch, ValueNet):
-#         if self.__model is None:
-#             raise ValueError('Model hasn\'t been built')
-#         else:
-#             # TODO
-#             pass
-#
-#     def predict(self, data):
-#         if self.__model is None:
-#             raise ValueError('Model hasn\'t been built')
-#         else:
-#             # TODO
-#             pass
-#
-#     def __build(self):
-#         print(" => Building model")
-#         self.__model = Sequential()
-#
-#         # Convolution layers
-#         self.__model.add(Conv2D(
-#             64, 5, strides=(2, 2),
-#             activation='relu',
-#             input_shape=self.__input_shape
-#         ))
-#         self.__model.add(BatchNormalization(
-#             momentum=0.15, axis=-1
-#         ))
-#         self.__model.add(Conv2D(
-#             128, 5, strides=(2, 2),
-#             activation='relu'
-#         ))
-#         self.__model.add(BatchNormalization(
-#             momentum=0.15, axis=-1
-#         ))
-#         self.__model.add(Conv2D(
-#             128, 5, strides=(2, 2),
-#             activation='relu'
-#         ))
-#         self.__model.add(BatchNormalization(
-#             momentum=0.15, axis=-1
-#         ))
-#
-#         # Flatten and fully connected
-#         self.__model.add(Flatten())
-#
-#         self.__model.add(Dense(512, activation='relu'))
-#         self.__model.add(Dropout(0.1))
-#         self.__model.add(Dense(256, activation='relu'))
-#         self.__model.add(Dropout(0.1))
-#
-#         self.__model.add(Dense(self.__n_actions))
-#
-#     def __compile(self):
-#         if self.__model is None:
-#             raise ValueError('Model hasn\'t been built')
-#         else:
-#             print(" => Compiling model")
-#             self.__model.compile(
-#                 loss='mse',
-#                 optimizer='rmsprop', metrics=['accuracy']
-#             )
-#
-#     def __save(self, filename):
-#         print(" => Saving model to {}...".format(filename))
-#         self.__model.save(filename)
-#
-#     def __save_weights(self, filename):
-#         print(" => Saving weights to {}...".format(filename))
-#         self.__model.save_weights(filename)
-#
-#     def __load(self, filename):
-#         print(" => Loading model from {}...".format(filename))
-#         try:
-#             self.__model = load_model(filename)
-#         except:
-#             raise ValueError("FileIO exception")
-#
-#     def __load_weights(self, filename):
-#         print(" => Loading weights from {}...".format(filename))
-#         try:
-#             self.__model.load_weights(filename)
-#         except:
-#             raise ValueError("FileIO exception")
-#
-# #---------------------------------
-# # class DeepQAgent
-# #---------------------------------
-# # TODO
+    def save(self):
+        self.model.save_weights('policy.hdf5')

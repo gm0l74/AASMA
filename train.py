@@ -4,17 +4,17 @@
 # File : train.py
 #
 # @ start date          16 05 2020
-# @ last update         17 05 2020
+# @ last update         18 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-import atexit
 import pygame
 
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 import environment, agent
 import utils
@@ -22,12 +22,8 @@ import utils
 #---------------------------------
 # Training Parameters
 #---------------------------------
-# Training parameters
-N_EPISODES = 150
-MAX_EPISODE_LENGTH = 20
-UPDATE_FREQUENCY = 7
-VALUENET_UPDATE_FREQ = 30
-REPLAY_START_SIZE = 3
+N_EPISODES = 50
+MAX_EPISODE_LENGTH = 200
 
 #---------------------------------
 # Execute
@@ -39,78 +35,54 @@ if __name__ == '__main__':
 
     import grabber
 
-    # Init the deep learning model
-    agent = agent.DeepQAgent(utils.ACTIONS)
-
-    # Weight file saving
-    atexit.register(agent.save_progress)
+    # Spawn the agent
+    dql_agent = agent.DeepQAgent()
 
     clock = pygame.time.Clock()
-    RUN = True
-    episode = 0
-    while RUN and episode < N_EPISODES:
-        print("EPISODE {}/{}".format(episode, N_EPISODES - 1))
+    RUN = True ; episode_i = 0
+    while RUN and episode_i < N_EPISODES:
+        print("EPISODE {}/{}".format(episode_i + 1, N_EPISODES))
 
-        # Deep Learning Training
+        # Reset the environemnt and the initial state
         env.reset()
+        current_state = utils.perceive(grabber.snapshot())
 
-        observation = utils.perceive(grabber.snapshot())
-        # plt.imshow(observation)
-        # plt.show()
-
-        # Init state with the same observations
-        state = np.array([ observation for _ in range(7) ])
-
+        in_episode_i = 0
         # Episode loop
-        episode_step = 0
-
-        while episode_step < MAX_EPISODE_LENGTH:
+        while RUN and in_episode_i < MAX_EPISODE_LENGTH:
             # Handle exit event
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     RUN = False
 
-            # Select an action using the agent
-            action = agent.get_action(np.asarray([state]))
+            action = dql_agent.make_action(current_state)
 
-            # Make the action
+            # Propagate the action to the environment
             env.move_character(0, utils.ACTIONS[action])
-            [reward] = env.update()
+            # ... and get the reward of said action
+            reward = env.update()[0]
+            print('[{}]\t{}\t[{}]'.format(
+                datetime.now().strftime('%H:%M:%S'),
+                utils.ACTIONS[action], reward
+            ))
 
-            observation = utils.perceive(grabber.snapshot())
-            next_state = np.append(state[1:], [observation], axis=0)
+            # Retrieve the new state
+            new_state = utils.perceive(grabber.snapshot())
 
-            # Clip the reward
-            clipped_reward = reward
-            # Store transition in replay memory
-            agent.add_experience(
-                np.asarray([state]),
-                action,
-                clipped_reward,
-                np.asarray([next_state])
-            )
+            # Add this to the replay memory
+            dql_agent.add_memory(current_state, action, reward, new_state)
 
-            # Train the agent
-            do_update = episode_step % UPDATE_FREQUENCY == 0
-            exp_check = len(agent.experiences) >= REPLAY_START_SIZE
+            # Train models
+            dql_agent.replay()
+            dql_agent.target_train()
 
-            if do_update and exp_check:
-                agent.train()
+            current_state = new_state
 
-                # Every now and then, update ValueNet
-                if agent.training_count % VALUENET_UPDATE_FREQ == 0:
-                    print("Reset Value Net")
-                    agent.reset_ValueNet()
+            # Save model every 5 episodes
+            if episode_i % 5 == 0:
+                dql_agent.save()
 
-            # Linear epsilon annealing
-            if exp_check:
-                agent.update_epsilon()
-
-            # Prepare for the next iteration
-            state = next_state
-
-            episode_step += 1
-            print(episode_step, utils.ACTIONS[action], reward)
+            in_episode_i += 1
             clock.tick(15)
 
-        episode += 1
+        episode_i += 1

@@ -4,7 +4,7 @@
 # File : environment.py
 #
 # @ start date          16 05 2020
-# @ last update         17 05 2020
+# @ last update         18 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -24,7 +24,7 @@ PATH = os.path.realpath(__file__)
 PATH = PATH[:len(PATH) - 14]
 
 # Changes behavior of environment reset
-LOCK_RESET = False
+LOCK_RESET = True
 
 # Environemnt operation
 HEATMAP_COLORS = {
@@ -57,6 +57,7 @@ class Environment:
         # Environment operation
         self.__screen = None
         self.__env_mtrx = []
+        self.__reset_env_matrx = None
 
         # Character operation
         self.__characters = []
