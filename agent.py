@@ -25,7 +25,7 @@ from tensorflow.keras.optimizers import Adam
 # class DeepQAgent
 #---------------------------------
 class DeepQAgent:
-    def __init__(self):
+    def __init__(self, weights_path=None):
         self.memory = deque(maxlen=2000)
 
         self.gamma = 0.95
@@ -39,6 +39,9 @@ class DeepQAgent:
         self.model = self.create_model()
         self.target_model = self.create_model()
         self.target_model.set_weights(self.model.get_weights())
+
+        if weights_path is not None:
+            self.load(weights_path)
 
         # Information on the nn structure
         self.model.summary()
@@ -75,12 +78,12 @@ class DeepQAgent:
         )
         return model
 
-    def make_action(self, state):
+    def make_action(self, state, force=False):
         self.epsilon *= self.epsilon_decay
         self.epsilon = max(self.epsilon_min, self.epsilon)
         print("e ", self.epsilon)
 
-        if np.random.random() < self.epsilon:
+        if (not force) and (np.random.random() < self.epsilon):
             return np.random.choice(len(utils.ACTIONS))
 
         state = state.reshape((1, *state.shape))
@@ -119,3 +122,6 @@ class DeepQAgent:
 
     def save(self):
         self.model.save_weights('policy.hdf5')
+
+    def load(self, weights_path):
+        self.model.load_weights(weights_path)
