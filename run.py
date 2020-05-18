@@ -4,18 +4,17 @@
 # File : run.py
 #
 # @ start date          17 05 2020
-# @ last update         17 05 2020
+# @ last update         18 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-import sys
+import sys, pygame
 from datetime import datetime
 import numpy as np
-from PIL import Image
 
-import environment, pygame
+import environment
 import agent as Agent
 import utils
 
@@ -23,8 +22,8 @@ import utils
 # Execute
 #---------------------------------
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        raise ValueError('Wrong number of parameters')
+    if len(sys.argv) < 2:
+        raise ValueError('Insufficient number of parameters')
 
     agent_type = sys.argv[1]
 
@@ -33,13 +32,11 @@ if __name__ == '__main__':
     env.add_character()
 
     if agent_type == 'drl':
-        import grabber
-        agent = Agent.DeepQAgent(
-            utils.ACTIONS, ['./policy_net.h5', './value_net.h5']
-        )
+        if len(sys.argv) != 3:
+            raise ValueError('\'weights_file\' is missing')
 
-        snapshot = utils.perceive(grabber.snapshot())
-        state = [snapshot for _ in range(7)]
+        import grabber
+        agent = Agent.DeepQAgent(sys.argv[2])
 
     clock = pygame.time.Clock()
     RUN = True
@@ -50,21 +47,21 @@ if __name__ == '__main__':
                 RUN = False
 
         if agent_type == 'random':
+            # Make a completely random action
             action = np.random.choice(utils.ACTIONS)
         elif agent_type == 'drl':
-            # Get the current state
             snapshot = utils.perceive(grabber.snapshot())
-            state = np.append(state[1:], [snapshot], axis=0)
 
-            # Select an action using purely exploitation
-            # print(agent.predict(state))
-            action = utils.ACTIONS[agent.predict(state)]
-            print("[{}] {}".format(
-                datetime.now().strftime('%H:%M:%S'), action
-            ))
+            # Use exploitation (e-greedy)
+            action = utils.ACTIONS[agent.make_action(state, force=True)]
         else:
             raise ValueError('Invalid agent type')
 
+        print("[{}] {}".format(
+            datetime.now().strftime('%H:%M:%S'), action
+        ))
+
+        # Notify environment engine
         env.move_character(0, action)
         env.update()
 
