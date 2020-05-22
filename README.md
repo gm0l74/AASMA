@@ -1,7 +1,5 @@
 # AASMA
-## Developing a sentient drone
-
-Ability to love is done until the 30th of may! Change my mind! Monstruoso!!
+## Deep Q Learning Drone Patroller
 
 ## Installation (Makefile)
 
@@ -9,56 +7,67 @@ To install aasma, run 'make'.
 To uninstall it, run 'make uninstall'.
 You can uninstall and re-install with 'make reset'.
 
-Stop pip installing requirements and adding the aasma alias,
-by setting up the environment variable: *IS_BUILT*.
-Just do:
-```console
-export IS_BUILT=TRUE
-```
+For example, when running the project for the first time do:
 
-To delete the environment variable:
-```console
-unset IS_BUILT
-```
-
-For example, when initializing a new docker container, one should do:
 ```console
 make reset
 ```
 
 ## Environment
 
-To instantiate an environment just do:
+The AASMA Environment is imported directly by whatever scripts need it.
+The environment is a grid world containing 5 types of cells:
+
+* Mountains
+* Fires
+* Green cells
+* Yellow cells
+* Red cells
+
+The goal is to minimize the occurrence of fires which are
+the evolution of a red cell.
+
+The evolution of the cells is **Green -> Yellow -> Red -> Fires -> Green**.
+Mountains do not change.
+
+The configuration of the environment can be altered in the file **config.json**.
+
+The environment can be seen below.
+
+![Environment](images/env.png)
+
+## Single Agent
+
+The agent related files are responsible for controlling the brain of the drone.
+
+The Agent's type can be one of **random** or **drl** or **reactive**.
+
+The *Random Agent* just chooses a random action at any given time.
+The *Reactive Agent* sees the environment, all sees the closest red cells.
+Only then it tries to eliminate them.
+
+The *DRL Agent*, however, is controlled by a neural net which receives
+an image of the entire environment as input.
+It then has to decide which action is the best.
+
+To train the neural net run:
 ```console
-aasma environment
+python aasma/train.py
 ```
 
-If aasma doesn't exist, make sure to source your .bashrc.
+You can visualize the input passed to the neural net by running:
 ```console
-source ~/.bashrc
+python aasma/grabber.py
 ```
 
-## Agent
+![Single agent](images/s_agent.png)
 
-To deploy an angent, open a new terminal and run:
-```console
-aasma agent <type>
-```
+## Multi Agent
 
-**Type can be one of 'randomness' or 'drl'.**<br />
-Like so,
-```console
-aasma agent randomness
-aasma agent drl
-```
+Multi agent **training** is not supported as is.
+To do it you would need to alter *train.py*.
+What is encouraged is transfer learning from a single agent domain to a multi agent one.
 
-You can spawn as many agents as you want!
+![Multi agent](images/m_agent.png)
 
-Randomness doesn't use any kind of deep learning, in fact, it just chooses a random action.
-DRL, however, has a neural net which receives an image as input.
-
-You can visualize the input passed to the neural net by running the grabber.py.
-
-```console
-python3 aasma/agent/grabber.py
-```
+All results were obtained by training on a NVIDIA GTX 1070.

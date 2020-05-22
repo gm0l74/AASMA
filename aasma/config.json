@@ -1,0 +1,26 @@
+{
+  "grid_dim": "80,80",
+  "cell_size": 8,
+
+  "mountain": 0.05,
+  "green": 0.45,
+  "yellow": 0.37,
+  "red": 0.13,
+
+  "green-yellow": "30,60",
+  "yellow-red": "40,100",
+  "red-fire": "60,90",
+  "fire-yellow": "50,70",
+
+  "search-time": 0,
+
+  "invalid_pos": -1,
+  "green_dtct": 0,
+  "yellow_dtct": 0,
+  "red_dtct": 1,
+
+  "green_exst": 0,
+  "yellow_exst": 0,
+  "red_exst": 0,
+  "fire_exst": -1
+}

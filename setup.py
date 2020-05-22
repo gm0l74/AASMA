@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
 #---------------------------------
-# AASMA
+# AASMA - Single Thread
 # File : setup.py
 #
-# @ start date          22 04 2020
-# @ last update         28 04 2020
+# @ start date          21 05 2020
+# @ last update         22 05 2020
+#---------------------------------
+
+#---------------------------------
+# Usage
+#---------------------------------
+# To install package locally
+# python setup.py install --user
+
+#---------------------------------
+# Imports
 #---------------------------------
 from setuptools import setup, find_packages
 
+#---------------------------------
+# Execute
+#---------------------------------
 setup(
     name='aasma',
     version='1.1',
-    data_files=[
-        'aasma/env/sprites/mountain.png',
-        'aasma/env/sprites/fire.png',
-        'aasma/env/sprites/drone.png'
-    ],
+    description='AASMA DeepQ Learning',
     packages=find_packages()
 )
