@@ -7,10 +7,10 @@
   "yellow": 0.37,
   "red": 0.13,
 
-  "green-yellow": "30,60",
-  "yellow-red": "40,100",
-  "red-fire": "60,90",
-  "fire-yellow": "50,70",
+  "green-yellow": "100,200",
+  "yellow-red": "200,300",
+  "red-fire": "300,400",
+  "fire-yellow": "200,300",
 
   "search-time": 0,
 

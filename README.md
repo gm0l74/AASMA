@@ -60,7 +60,7 @@ You can visualize the input passed to the neural net by running:
 python aasma/grabber.py
 ```
 
-![Single agent](images/s_agent.png)
+![Single agent](images/s_agent.gif)
 
 ## Multi Agent
 

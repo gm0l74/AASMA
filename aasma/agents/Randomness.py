@@ -4,13 +4,14 @@
 # File : Randomness.py
 #
 # @ start date          21 05 2020
-# @ last update         21 05 2020
+# @ last update         23 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
 import aasma.agents.AgentAbstract as AgentAbstract
+import numpy as np
 
 #---------------------------------
 # class AgentAbstract
@@ -20,4 +21,4 @@ class Randomness(AgentAbstract.AgentAbstract):
         super(Randomness, self).__init__()
 
     def make_action(self, state):
-        return np.random.choice(self.n_actions)
+        return np.random.choice(self.actions)

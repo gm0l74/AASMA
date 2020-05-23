@@ -4,7 +4,7 @@
 # File : run.py
 #
 # @ start date          17 05 2020
-# @ last update         22 05 2020
+# @ last update         23 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -17,14 +17,14 @@ import numpy as np
 import environment, pygame
 import utils
 
-import agents.Reactive as Reactive
-import agents.Randomness as Randomness
-import agents.DeepQ as DeepQ
+import aasma.agents.Reactive as Reactive
+import aasma.agents.Randomness as Randomness
+import aasma.agents.DeepQ as DeepQ
 
 #---------------------------------
 # Environment Engine
 #---------------------------------
-FPS = 120
+FPS = 240
 
 #---------------------------------
 # Execute
@@ -59,12 +59,14 @@ if __name__ == '__main__':
 
         import grabber
 
-        agent = DeepQ(sys.argv[3])
-        state = np.array([ utils.perceive(grabber.snapshot()) for _ in range(4)])
+        agent = DeepQ.DeepQ(sys.argv[3])
+
+        snapshot = utils.perceive(grabber.snapshot())
+        state = np.array([snapshot for _ in range(4)])
     elif agent_type == 'random':
-        agent = Randomness()
+        agent = Randomness.Randomness()
     else:
-        agent = Reactive()
+        agent = Reactive.Reactive()
 
     clock = pygame.time.Clock()
     RUN = True
@@ -84,15 +86,17 @@ if __name__ == '__main__':
                 env.move_character(agent_id, agent.make_action(overview))
         else:
             # Deep Reinforcement Agent
-            snapshot = utils.perceibe(grabber.snapshot())
-            state = np.concatenate((state[1:], snapshot), axis=None)
+            snapshot = utils.perceive(grabber.snapshot())
+            snapshot = snapshot.reshape(1, *utils.IMG_SIZE)
+
+            state = np.concatenate((state[1:], snapshot), axis=0)
 
             for agent_id in range(n_agents):
-                env.move_character(agent_id, agent.make_action(state))
-
-        print("[{}] SCORE {}".format(
-            datetime.now().strftime('%H:%M:%S'),
-        ))
+                env.move_character(agent_id, utils.ACTIONS[
+                    agent.predict(
+                        np.expand_dims(np.transpose(state, [1, 2, 0]), axis=0)
+                    )[1]
+                ])
 
         env.update()
         clock.tick(FPS)

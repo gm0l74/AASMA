@@ -50,8 +50,8 @@ if __name__ == '__main__':
 
     # Use transfer learning from single agent training
     # and restore training session
-    agent1 = DeepQ.DeepQ(sys.argv[1]).restore()
-    agent2 = DeepQ.DeepQ(sys.argv[1]).restore()
+    agent1 = DeepQ.DeepQ(sys.argv[1]).restore_training()
+    agent2 = DeepQ.DeepQ(sys.argv[1]).restore_training()
 
     episode_i = 0
     n_snapshots = 0

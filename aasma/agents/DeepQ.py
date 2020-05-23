@@ -4,7 +4,7 @@
 # File : DeepQ.py
 #
 # @ start date          21 05 2020
-# @ last update         22 05 2020
+# @ last update         23 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -39,20 +39,18 @@ DISCOUNT = 0.99
 
 MAX_MEMORY_SIZE = 100000
 
-# TODO review the next 175 lines of code
-
 #---------------------------------
 # Utilities
 #---------------------------------
-def dense_to_one_hot(data, depth=10):
-    return (np.arange(depth) == np.array(data)[:, None]).astype(np.bool)
+def dense_to_one_hot(data):
+    return (np.arange(len(utils.ACTIONS)) == np.array(data)[:, None]).astype(np.bool)
 
 tf.compat.v1.disable_eager_execution()
 #---------------------------------
 # class DeepQ
 #---------------------------------
 class DeepQ(AgentAbstract.AgentAbstract):
-    def __init__(self):
+    def __init__(self, load=None):
         super(DeepQ, self).__init__()
 
         self.batch = deque()
@@ -69,6 +67,10 @@ class DeepQ(AgentAbstract.AgentAbstract):
         self.opt = Adam(lr=self.learning_rate)
         self.policy.compile(optimizer=self.opt, loss=[DeepQ.huber_loss])
 
+        if load is not None:
+            self.policy.load_weights(r'C:\Users\Besta2.0\Desktop\aasma\new\AASMA\aasma/agents/saved_models/policy.h5')
+            self.target.load_weights(r'C:\Users\Besta2.0\Desktop\aasma\new\AASMA\aasma/agents/saved_models/target.h5')
+
     @property
     def mini_batch_size(self):
         return 32
@@ -78,7 +80,8 @@ class DeepQ(AgentAbstract.AgentAbstract):
         return self.learning_rate
 
     def make_action(self, state):
-        return self.policy.predict(state)
+        _, action = self.policy.predict(state)
+        return action
 
     def predict(self, state):
         q = self.q_out(state)
@@ -97,12 +100,12 @@ class DeepQ(AgentAbstract.AgentAbstract):
             map(lambda x: np.array(list(x)), zip(*random.sample(self.batch, 32)))
         batch_state = np.transpose(batch_state, axes=[0, 2, 3, 1])
         states_next = np.transpose(states_next, axes=[0, 2, 3, 1])
-        batch_mask = dense_to_one_hot(batch_mask, len(utils.ACTIONS))
+        batch_mask = dense_to_one_hot(batch_mask)
         q_next = self.target.predict(states_next)
         batch_q[batch_mask] = np.array(rewards) + self.gamma * np.array(done) * np.max(q_next, axis=1)
         return batch_q, batch_state, batch_mask
 
-    def build_train_network():
+    def build_train_network(self):
         # TODO
         X = Input(shape=(80, 80, 4), dtype='float32')
         mask = Input(shape=(len(utils.ACTIONS),), dtype='float32')
@@ -110,7 +113,7 @@ class DeepQ(AgentAbstract.AgentAbstract):
         q_ = Lambda(lambda x: K.reshape(K.sum(x * mask, axis=1), (-1, 1)), output_shape=(1,))(q_out)
         return K.function([X], [q_out]), Model([X, mask], q_)
 
-    def build_target_network():
+    def build_target_network(self):
         # TODO
         X = Input(shape=(80, 80, 4), dtype='float32')
         Q, model = DeepQ.infer(X, trainable=False, init=initializers.zeros())
@@ -172,8 +175,10 @@ class DeepQ(AgentAbstract.AgentAbstract):
         np.save(os.path.join(path, 'params'), [self.episode, self.epsilon])
 
     def restore_training(self, path='saved_models'):
-        # TODO
-        pass
+        episode, eps = np.load(r'C:\Users\Besta2.0\Desktop\aasma\new\AASMA\aasma/agents/saved_models/params.npy')
+
+        self.episode = episode
+        self.epsilon = eps
 
 #---------------------------------
 # class LayerNormalization

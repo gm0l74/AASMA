@@ -4,7 +4,7 @@
 # File : environment.py
 #
 # @ start date          16 05 2020
-# @ last update         21 05 2020
+# @ last update         23 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -564,4 +564,11 @@ class Environment:
         return rewards, penalty
 
     def gods_view(self):
-        return self.__env_mtrx, self.__agents
+        return self.__env_mtrx, self.__characters
+
+#---------------------------------
+# Execute
+#---------------------------------
+if __name__ == '__main__':
+    env = Environment('./config.json')
+    env.add_character()
