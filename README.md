@@ -34,7 +34,9 @@ The configuration of the environment can be altered in the file **config.json**.
 
 The environment can be seen below.
 
-![Environment](images/env.png)
+<p align="center">
+  <img width="100" src="https://github.com/gm0l74/AASMA/blob/master/images/env.png">
+</p>
 
 ## Single Agent
 
@@ -60,7 +62,9 @@ You can visualize the input passed to the neural net by running:
 python aasma/grabber.py
 ```
 
-![Single agent](images/s_agent.gif)
+<p align="center">
+  <img width="100" src="https://github.com/gm0l74/AASMA/blob/master/images/s_agent.gif">
+</p>
 
 ## Multi Agent
 
@@ -68,6 +72,8 @@ Multi agent **training** is not supported as is.
 To do it you would need to alter *train.py*.
 What is encouraged is transfer learning from a single agent domain to a multi agent one.
 
-![Multi agent](images/m_agent.png)
+<p align="center">
+  <img width="100" src="https://github.com/gm0l74/AASMA/blob/master/images/m_agent.gif">
+</p>
 
 All results were obtained by training on a NVIDIA GTX 1070.
