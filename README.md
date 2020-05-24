@@ -13,7 +13,7 @@ For example, when running the project for the first time do:
 make reset
 ```
 
-All models were trained on a NVIDIA GTX 1070.
+All models were trained on a NVIDIA GTX 1070 and on a NVIDIA GTX 1060 6GB.
 
 ## Environment
 
