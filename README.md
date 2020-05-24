@@ -73,7 +73,7 @@ To run the project with an already trained model do:
 python run.py [drl|random|reactive] [single|multi] <path>
 ```
 
-...in which <path> is only required if you are using DRL.
+...in which '<path>' is only required if you are using DRL.
 For these situations <path> = agents/saved_models
 
 ## Multi Agent
