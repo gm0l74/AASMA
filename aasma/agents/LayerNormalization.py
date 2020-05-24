@@ -4,7 +4,7 @@
 # File : DeepQ.py
 #
 # @ start date          21 05 2020
-# @ last update         23 05 2020
+# @ last update         24 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -43,7 +43,8 @@ class LayerNormalization(Layer):
         outputs = (inputs - mean) / K.sqrt(var + self.eps)
 
         try:
-            outputs = outputs * self.trainable_weights[0] + self.trainable_weights[1]
+            outputs = outputs * self.trainable_weights[0] + \
+                self.trainable_weights[1]
         except:
             pass
 
