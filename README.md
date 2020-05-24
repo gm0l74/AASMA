@@ -13,6 +13,8 @@ For example, when running the project for the first time do:
 make reset
 ```
 
+All models were trained on a NVIDIA GTX 1070 and on a NVIDIA GTX 1060 6GB.
+
 ## Environment
 
 The AASMA Environment is imported directly by whatever scripts need it.
@@ -34,7 +36,9 @@ The configuration of the environment can be altered in the file **config.json**.
 
 The environment can be seen below.
 
-![Environment](images/env.png)
+<p align="center">
+  <img width="200" src="https://github.com/gm0l74/AASMA/blob/master/images/env.png">
+</p>
 
 ## Single Agent
 
@@ -60,14 +64,42 @@ You can visualize the input passed to the neural net by running:
 python aasma/grabber.py
 ```
 
-![Single agent](images/s_agent.gif)
+<p align="center">
+  <img width="200" src="https://github.com/gm0l74/AASMA/blob/master/images/s_agent.gif">
+</p>
+
+To run the project with an already trained model do:
+```console
+python run.py [drl|random|reactive] [single|multi] <path>
+```
+
+...in which 'path' is only required if you are using DRL.
+For these situations path = agents/saved_models
 
 ## Multi Agent
 
-Multi agent **training** is not supported as is.
-To do it you would need to alter *train.py*.
-What is encouraged is transfer learning from a single agent domain to a multi agent one.
+Multi agent training is made on top of a model trained in single agent.
+Hence the use of *transfer learning* in this project.
+To train a multi agent system do:
+```console
+python train_multi.py agents/saved_models
+```
 
-![Multi agent](images/m_agent.png)
+The multi agent system only supports two characters as is.
+Future work may be done to extend the support to more simultaneous agents.
 
-All results were obtained by training on a NVIDIA GTX 1070.
+<p align="center">
+  <img width="300" src="https://github.com/gm0l74/AASMA/blob/master/images/m_agent.gif">
+</p>
+
+## Comparisons
+To compare all models, one should execute:
+```console
+python h2h.py
+```
+
+Here are some results of a head to head run...
+
+<p align="center">
+  <img src="https://github.com/gm0l74/AASMA/blob/master/images/h2h.png">
+</p>

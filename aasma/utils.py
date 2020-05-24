@@ -46,6 +46,8 @@ CONFIG_FIELDS = {
     'fire_exst': 'dec'
 }
 
+OTHER_DRONE_COLOR_AVOIDANCE = 110 # in gray scale
+
 #---------------------------------
 # Utility functions
 #---------------------------------
@@ -167,8 +169,6 @@ def perceive(snap):
     # To visualize a gray scaled image
     # matplotlib.pyplot.imshow(alt_snap, cmap='gray', vmin=0, vmax=255)
     return np.asarray(image.getdata(), dtype=np.uint8).reshape(*IMG_SIZE)
-
-OTHER_DRONE_COLOR_AVOIDANCE = 110 # in gray scale
 
 def alter_snapshot(snapshot, cell_size, position, color):
     snapshot = copy.deepcopy(snapshot)

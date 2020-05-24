@@ -31,7 +31,7 @@ FPS = 60
 #---------------------------------
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print("Usage: python run.py [drl|random|reactive] [single|multi] <path>")
+        print("Usage: python run.py [drl|random|reactive] [single|multi] path")
         raise ValueError('Insufficient number of parameters')
 
     agent_type = sys.argv[1]
@@ -74,7 +74,9 @@ if __name__ == '__main__':
             _, characters = env.gods_view()
             for character in characters:
                 position = [character['x'], character['y']]
-                alt_snap = utils.remove_character_from_image(snapshot, position)
+                alt_snap = utils.remove_character_from_image(
+                    snapshot, position
+                )
 
                 state.append(np.array([alt_snap for _ in range(4)]))
 
@@ -118,10 +120,15 @@ if __name__ == '__main__':
                 for i, character in enumerate(characters):
                     position = [character['x'], character['y']]
 
-                    alt_snap = utils.remove_character_from_image(snapshot, position)
+                    alt_snap = utils.remove_character_from_image(
+                        snapshot, position
+                    )
                     alt_snap = alt_snap.reshape(1, *utils.IMG_SIZE)
 
-                    state[i] = np.concatenate((state[i][1:], alt_snap), axis=0)
+                    state[i] = np.concatenate(
+                        (state[i][1:], alt_snap),
+                        axis=0
+                    )
 
                     env.move_character(1 if i == 0 else 0, utils.ACTIONS[
                         agent.predict(
