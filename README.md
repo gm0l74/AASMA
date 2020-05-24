@@ -13,6 +13,8 @@ For example, when running the project for the first time do:
 make reset
 ```
 
+All models were trained on a NVIDIA GTX 1070.
+
 ## Environment
 
 The AASMA Environment is imported directly by whatever scripts need it.
@@ -35,7 +37,7 @@ The configuration of the environment can be altered in the file **config.json**.
 The environment can be seen below.
 
 <p align="center">
-  <img width="100" src="https://github.com/gm0l74/AASMA/blob/master/images/env.png">
+  <img width="300" src="https://github.com/gm0l74/AASMA/blob/master/images/env.png">
 </p>
 
 ## Single Agent
@@ -66,14 +68,32 @@ python aasma/grabber.py
   <img width="100" src="https://github.com/gm0l74/AASMA/blob/master/images/s_agent.gif">
 </p>
 
+To run the project with an already trained model do:
+```console
+python run.py [drl|random|reactive] [single|multi] <path>
+```
+
+...in which <path> is only required if you are using DRL.
+For these situations <path> = agents/saved_models
+
 ## Multi Agent
 
-Multi agent **training** is not supported as is.
-To do it you would need to alter *train.py*.
-What is encouraged is transfer learning from a single agent domain to a multi agent one.
+Multi agent training is made on top of a model trained in single agent.
+Hence the use of *transfer learning* in this project.
+To train a multi agent system do:
+```console
+python train_multi.py agents/saved_models
+```
+
+The multi agent system only supports two characters as is.
+Future work may be done to extend the support to more simultaneous agents.
 
 <p align="center">
-  <img width="100" src="https://github.com/gm0l74/AASMA/blob/master/images/m_agent.gif">
+  <img width="300" src="https://github.com/gm0l74/AASMA/blob/master/images/m_agent.gif">
 </p>
 
-All results were obtained by training on a NVIDIA GTX 1070.
+## Comparisons
+To compare all models, one should execute:
+```console
+python h2h.py
+```
