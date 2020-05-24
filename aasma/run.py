@@ -4,13 +4,13 @@
 # File : run.py
 #
 # @ start date          17 05 2020
-# @ last update         23 05 2020
+# @ last update         24 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-import sys
+import sys, copy
 from datetime import datetime
 import numpy as np
 
@@ -24,14 +24,14 @@ import aasma.agents.DeepQ as DeepQ
 #---------------------------------
 # Environment Engine
 #---------------------------------
-FPS = 240
+FPS = 60
 
 #---------------------------------
 # Execute
 #---------------------------------
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print("Usager: python run.py [drl|random|reactive] [single|multi]")
+        print("Usage: python run.py [drl|random|reactive] [single|multi] <path>")
         raise ValueError('Insufficient number of parameters')
 
     agent_type = sys.argv[1]
@@ -59,10 +59,25 @@ if __name__ == '__main__':
 
         import grabber
 
+        # A single neural net can be used to control multiple agents
         agent = DeepQ.DeepQ(sys.argv[3])
 
+        # Init the states fed to the neural net later on
         snapshot = utils.perceive(grabber.snapshot())
-        state = np.array([snapshot for _ in range(4)])
+
+        if n_agents == 1:
+            # There's only a single state
+            state = np.array([snapshot for _ in range(4)])
+        else:
+            # There's are as many states as there are agents
+            state = []
+            _, characters = env.gods_view()
+            for character in characters:
+                position = [character['x'], character['y']]
+                alt_snap = utils.remove_character_from_image(snapshot, position)
+
+                state.append(np.array([alt_snap for _ in range(4)]))
+
     elif agent_type == 'random':
         agent = Randomness.Randomness()
     else:
@@ -72,7 +87,7 @@ if __name__ == '__main__':
     RUN = True
 
     while RUN:
-        # Handle pygame events (Exit)
+        # Handle pygame events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 RUN = False
@@ -87,16 +102,34 @@ if __name__ == '__main__':
         else:
             # Deep Reinforcement Agent
             snapshot = utils.perceive(grabber.snapshot())
-            snapshot = snapshot.reshape(1, *utils.IMG_SIZE)
 
-            state = np.concatenate((state[1:], snapshot), axis=0)
+            if n_agents == 1:
+                snapshot = snapshot.reshape(1, *utils.IMG_SIZE)
+                state = np.concatenate((state[1:], snapshot), axis=0)
 
-            for agent_id in range(n_agents):
-                env.move_character(agent_id, utils.ACTIONS[
+                env.move_character(0, utils.ACTIONS[
                     agent.predict(
                         np.expand_dims(np.transpose(state, [1, 2, 0]), axis=0)
                     )[1]
                 ])
+            else:
+                _, characters = env.gods_view()
+                characters = copy.deepcopy(characters)
+                for i, character in enumerate(characters):
+                    position = [character['x'], character['y']]
+
+                    alt_snap = utils.remove_character_from_image(snapshot, position)
+                    alt_snap = alt_snap.reshape(1, *utils.IMG_SIZE)
+
+                    state[i] = np.concatenate((state[i][1:], alt_snap), axis=0)
+
+                    env.move_character(1 if i == 0 else 0, utils.ACTIONS[
+                        agent.predict(
+                            np.expand_dims(
+                                np.transpose(state[i], [1, 2, 0]), axis=0
+                            )
+                        )[1]
+                    ])
 
         env.update()
         clock.tick(FPS)

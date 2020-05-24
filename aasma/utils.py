@@ -4,13 +4,13 @@
 # File : utils.py
 #
 # @ start date          16 05 2020
-# @ last update         22 05 2020
+# @ last update         24 05 2020
 #---------------------------------
 
 #---------------------------------
 # Imports
 #---------------------------------
-import re, json
+import re, json, copy
 from PIL import Image
 import numpy as np
 
@@ -163,4 +163,29 @@ def perceive(snap):
 
     # Revert to image format and change rgb to gray scale
     image = Image.fromarray(data, 'RGB').convert('L').resize(IMG_SIZE)
+
+    # To visualize a gray scaled image
+    # matplotlib.pyplot.imshow(alt_snap, cmap='gray', vmin=0, vmax=255)
     return np.asarray(image.getdata(), dtype=np.uint8).reshape(*IMG_SIZE)
+
+OTHER_DRONE_COLOR_AVOIDANCE = 110 # in gray scale
+
+def alter_snapshot(snapshot, cell_size, position, color):
+    snapshot = copy.deepcopy(snapshot)
+    x, y = position
+
+    for _y in range(y, y + cell_size):
+        for _x in range(x, x + cell_size):
+            # snapshot[_y, _x] = color
+            snapshot[_y, _x] = OTHER_DRONE_COLOR_AVOIDANCE
+
+    return snapshot
+
+def remove_character_from_image(snapshot, position):
+    x, y = position
+    cell_size = parse_config('./config.json')['cell_size']
+
+    x *= cell_size ; y *= cell_size
+    color = snapshot[y, x + cell_size // 2]
+
+    return alter_snapshot(snapshot, cell_size, (x, y), color)

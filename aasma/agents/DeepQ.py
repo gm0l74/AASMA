@@ -4,7 +4,7 @@
 # File : DeepQ.py
 #
 # @ start date          21 05 2020
-# @ last update         23 05 2020
+# @ last update         24 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -15,6 +15,7 @@ import numpy as np
 from collections import deque
 
 import aasma.agents.AgentAbstract as AgentAbstract
+import aasma.agents.LayerNormalization as LayerNormalization
 import aasma.utils as utils
 
 import tensorflow as tf
@@ -38,12 +39,13 @@ LEARNING_RATE = 1e-5
 DISCOUNT = 0.99
 
 MAX_MEMORY_SIZE = 100000
+MINI_BATCH_SIZE = 32
 
 #---------------------------------
 # Utilities
 #---------------------------------
-def dense_to_one_hot(data):
-    return (np.arange(len(utils.ACTIONS)) == np.array(data)[:, None]).astype(np.bool)
+def dense_to_one_hot(data, depth=10):
+    return (np.arange(depth) == np.array(data)[:, None]).astype(np.bool)
 
 tf.compat.v1.disable_eager_execution()
 #---------------------------------
@@ -53,27 +55,45 @@ class DeepQ(AgentAbstract.AgentAbstract):
     def __init__(self, load=None):
         super(DeepQ, self).__init__()
 
-        self.batch = deque()
+        # Memory
+        self.memory = deque()
+
+        # Neural Networks
         self.q_out, self.policy = self.build_train_network()
         self.target = self.build_target_network()
 
-        self.decay_step = 0
+        # Hyper parameters
         self.learning_rate = LEARNING_RATE
         self.epsilon = MAX_EPSILON
         self.gamma = DISCOUNT
 
         self.episode = 0
 
-        self.opt = Adam(lr=self.learning_rate)
-        self.policy.compile(optimizer=self.opt, loss=[DeepQ.huber_loss])
+        optimizer = Adam(lr=self.learning_rate)
+
+        # Custom loss function (Huber loss)
+        # See https://medium.com/@gobiviswaml/huber-error-loss-functions-3f2ac015cd45
+        def huber_loss(x, y):
+            error = K.abs(x - y)
+            quadratic = K.square(K.clip(error, 0.0, 1.0))
+            linear = error - quadratic
+            return K.mean(0.5 * quadratic + linear, axis=-1)
+
+        self.policy.compile(optimizer=optimizer, loss=huber_loss)
 
         if load is not None:
-            self.policy.load_weights(r'C:\Users\Besta2.0\Desktop\aasma\new\AASMA\aasma/agents/saved_models/policy.h5')
-            self.target.load_weights(r'C:\Users\Besta2.0\Desktop\aasma\new\AASMA\aasma/agents/saved_models/target.h5')
+            pwd = os.getcwd()
+
+            self.policy.load_weights(os.path.join(
+                pwd, f'{load}/policy.h5'
+            ))
+            self.target.load_weights(os.path.join(
+                pwd, f'{load}/target.h5'
+            ))
 
     @property
     def mini_batch_size(self):
-        return 32
+        return MINI_BATCH_SIZE
 
     @property
     def alpha(self):
@@ -87,74 +107,68 @@ class DeepQ(AgentAbstract.AgentAbstract):
         q = self.q_out(state)
         return q, np.argmax(np.array(q).flatten())
 
-    def feed_batch(self, data):
-        # TODO
-        if len(self.batch) >= MAX_MEMORY_SIZE:
-            self.batch.popleft()
-        self.batch.append(data)
-        return self.batch
+    def add_experience(self, experience):
+        if len(self.memory) >= MAX_MEMORY_SIZE:
+            # Free oldest experience
+            self.memory.popleft()
+
+        self.memory.append(experience)
+        return self.memory
 
     def sample_batch(self):
         # TODO
         batch_q, batch_state, batch_mask, states_next, rewards, done =\
-            map(lambda x: np.array(list(x)), zip(*random.sample(self.batch, 32)))
+            map(lambda x: np.array(list(x)), zip(*random.sample(self.memory, 32)))
         batch_state = np.transpose(batch_state, axes=[0, 2, 3, 1])
         states_next = np.transpose(states_next, axes=[0, 2, 3, 1])
-        batch_mask = dense_to_one_hot(batch_mask)
+        batch_mask = dense_to_one_hot(batch_mask, len(utils.ACTIONS))
         q_next = self.target.predict(states_next)
+        batch_q = batch_q.reshape(32, 4)
         batch_q[batch_mask] = np.array(rewards) + self.gamma * np.array(done) * np.max(q_next, axis=1)
         return batch_q, batch_state, batch_mask
 
     def build_train_network(self):
         # TODO
-        X = Input(shape=(80, 80, 4), dtype='float32')
+        X = Input(shape=(*utils.IMG_SIZE, 4), dtype='float32')
         mask = Input(shape=(len(utils.ACTIONS),), dtype='float32')
-        q_out, model = DeepQ.infer(X)
+        q_out, model = self.__build(X)
         q_ = Lambda(lambda x: K.reshape(K.sum(x * mask, axis=1), (-1, 1)), output_shape=(1,))(q_out)
         return K.function([X], [q_out]), Model([X, mask], q_)
 
     def build_target_network(self):
-        # TODO
-        X = Input(shape=(80, 80, 4), dtype='float32')
-        Q, model = DeepQ.infer(X, trainable=False, init=initializers.zeros())
+        X = Input(shape=(*utils.IMG_SIZE, 4), dtype='float32')
+        _, model = self.__build(X, trainable=False, init=initializers.zeros())
         return model
 
-    @staticmethod
-    def huber_loss(x, y):
-        # TODO
-        error = K.abs(x - y)
-        quadratic_part = K.clip(error, 0.0, 1.0)
-        linear_part = error - quadratic_part
-        loss = K.mean(0.5 * K.square(quadratic_part) + linear_part, axis=-1)
-        return loss
-
-    @staticmethod
-    def infer(X, trainable=True, init=initializers.TruncatedNormal(stddev=0.01)):
+    def __build(self, X, trainable=True, init=initializers.TruncatedNormal(stddev=0.01)):
         # TODO
         init_w = init
         init_b = initializers.constant(0.)
         normed = Lambda(lambda x: x / 255., output_shape=K.int_shape(X)[1:])(X)
         h_conv1 = Convolution2D(32, (8, 8), strides=(4, 4),
                                 kernel_initializer=init_w, use_bias=False, padding='same')(normed)
-        h_ln1 = LayerNormalization(activation=K.relu)(h_conv1)
+        h_ln1 = LayerNormalization.LayerNormalization(activation=K.relu)(h_conv1)
         h_conv2 = Convolution2D(64, (4, 4), strides=(2, 2),
                                 kernel_initializer=init_w, use_bias=False, padding='same')(h_ln1)
-        h_ln2 = LayerNormalization(activation=K.relu)(h_conv2)
+        h_ln2 = LayerNormalization.LayerNormalization(activation=K.relu)(h_conv2)
         h_conv3 = Convolution2D(64, (3, 3), strides=(1, 1),
                                 kernel_initializer=init_w, use_bias=False, padding='same')(h_ln2)
-        h_ln3 = LayerNormalization(activation=K.relu)(h_conv3)
+        h_ln3 = LayerNormalization.LayerNormalization(activation=K.relu)(h_conv3)
         h_flat = Flatten()(h_ln3)
         fc1 = Dense(512, use_bias=False, kernel_initializer=init_w)(h_flat)
-        h_ln_fc1 = LayerNormalization(activation=K.relu)(fc1)
+        h_ln_fc1 = LayerNormalization.LayerNormalization(activation=K.relu)(fc1)
         z = Dense(len(utils.ACTIONS), kernel_initializer=init_w, use_bias=False, bias_initializer=init_b)(h_ln_fc1)
         model = Model(X, z)
         model.trainable = trainable
         return z, model
 
-    def train(self, terminal_state):
-        # TODO
+    def learn(self):
         batch_q, batch_state, batch_mask = self.sample_batch()
-        self.policy.fit([batch_state, batch_mask], np.sum(batch_mask * batch_q, axis=1), verbose=0)
+        self.policy.fit(
+            [batch_state, batch_mask],
+            np.sum(batch_mask * batch_q, axis=1),
+            verbose=0
+        )
 
     def update_epsilon(self):
         self.epsilon = np.maximum(
@@ -175,54 +189,9 @@ class DeepQ(AgentAbstract.AgentAbstract):
         np.save(os.path.join(path, 'params'), [self.episode, self.epsilon])
 
     def restore_training(self, path='saved_models'):
-        episode, eps = np.load(r'C:\Users\Besta2.0\Desktop\aasma\new\AASMA\aasma/agents/saved_models/params.npy')
+        episode, _, eps, __ = np.load(os.path.join(
+            os.getcwd(), f'{path}/params.npy'
+        ))
 
-        self.episode = episode
+        self.episode = int(episode)
         self.epsilon = eps
-
-#---------------------------------
-# class LayerNormalization
-#---------------------------------
-class LayerNormalization(Layer):
-    def __init__(self, eps=1e-5, activation=None, **kwargs):
-        self.eps = eps
-        self.channels = None
-        self.activation = activation
-        super(LayerNormalization, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        self.channels = input_shape[-1]
-        shape = [1] * (len(input_shape) - 1)
-        shape.append(self.channels)
-        self.add_weight('gamma', shape, dtype='float32', initializer='ones')
-        self.add_weight('beta', shape, dtype='float32', initializer='zeros')
-
-        super(LayerNormalization, self).build(input_shape)
-
-    def get_config(self):
-        config = {
-            'eps': self.eps,
-            'channels': self.channels,
-            'activation': self.activation
-        }
-
-        base_config = super(LayerNormalization, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
-    def call(self, inputs, **kwargs):
-        dim = len(K.int_shape(inputs)) - 1
-        mean = K.mean(inputs, axis=dim, keepdims=True)
-        var = K.mean(K.square(inputs - mean), axis=dim, keepdims=True)
-        outputs = (inputs - mean) / K.sqrt(var + self.eps)
-        try:
-            outputs = outputs * self.trainable_weights[0] + self.trainable_weights[1]
-        except:
-            pass
-        if self.activation is None:
-            return outputs
-        else:
-            return self.activation(outputs)
-
-    def restore(self):
-        # TODO
-        pass

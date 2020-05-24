@@ -16,7 +16,7 @@
 
   "invalid_pos": -1,
   "green_dtct": 0,
-  "yellow_dtct": 0,
+  "yellow_dtct": 0.5,
   "red_dtct": 1,
 
   "green_exst": 0,

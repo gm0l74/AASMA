@@ -4,7 +4,7 @@
 # File : train.py
 #
 # @ start date          16 05 2020
-# @ last update         22 05 2020
+# @ last update         24 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     clock = pygame.time.Clock()
 
     # Main training loop
-    RUN = True ; episode_i = 0
+    RUN = True
     while RUN:
         env.reset()
         snapshot = utils.perceive(grabber.snapshot())
@@ -136,11 +136,12 @@ if __name__ == '__main__':
 
             # Get the result of making said action...
             snapshot = utils.perceive(grabber.snapshot())
+            snapshot = snapshot.reshape(1, *utils.IMG_SIZE)
             # ... and update the state
-            next_state = np.concatenate((state[1:], snapshot), axis=None)
+            next_state = np.append(state[1:], snapshot, axis=0)
 
             # Insert new transition
-            agent.feed_batch((
+            agent.add_experience((
                 q_values, state, action, next_state,
                 np.sign(r), int(not is_done)
             ))
@@ -149,9 +150,9 @@ if __name__ == '__main__':
             state = next_state
 
             # Train the agent
-            if (len(agent.batch) >= agent.mini_batch_size) and \
+            if (len(agent.memory) >= agent.mini_batch_size) and \
                 (n_snapshots % 4 == 0):
-                agent.train(is_done)
+                agent.learn()
                 agent.update_epsilon()
 
             clock.tick(FPS)
