@@ -73,8 +73,8 @@ To run the project with an already trained model do:
 python run.py [drl|random|reactive] [single|multi] <path>
 ```
 
-...in which '<path>' is only required if you are using DRL.
-For these situations <path> = agents/saved_models
+...in which 'path' is only required if you are using DRL.
+For these situations path = agents/saved_models
 
 ## Multi Agent
 
@@ -97,3 +97,9 @@ To compare all models, one should execute:
 ```console
 python h2h.py
 ```
+
+Here are some results of a head to head run...
+
+<p align="center">
+  <img src="https://github.com/gm0l74/AASMA/blob/master/images/h2h.png">
+</p>
