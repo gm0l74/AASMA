@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #---------------------------------
-# AASMA Single Thread
+# AASMA
 # File : environment.py
 #
 # @ start date          16 05 2020

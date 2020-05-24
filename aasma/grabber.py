@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #---------------------------------
-# AASMA - Agent
+# AASMA
 # File : grabber.py
 #
 # @ start date          22 04 2020

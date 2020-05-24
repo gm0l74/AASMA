@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #---------------------------------
-# AASMA Single Thread
+# AASMA
 # File : Randomness.py
 #
 # @ start date          21 05 2020

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #---------------------------------
-# AASMA Single Thread
+# AASMA
 # File : DeepQ.py
 #
 # @ start date          21 05 2020
@@ -14,9 +14,9 @@ import os, random
 import numpy as np
 from collections import deque
 
+import aasma.utils as utils
 import aasma.agents.AgentAbstract as AgentAbstract
 import aasma.agents.LayerNormalization as LayerNormalization
-import aasma.utils as utils
 
 import tensorflow as tf
 from tensorflow.keras import backend as K
@@ -44,8 +44,9 @@ MINI_BATCH_SIZE = 32
 #---------------------------------
 # Utilities
 #---------------------------------
-def dense_to_one_hot(data, depth=10):
-    return (np.arange(depth) == np.array(data)[:, None]).astype(np.bool)
+def dense_to_one_hot(data):
+    return (np.arange(len(utils.ACTIONS)) == \
+        np.array(data)[:, None]).astype(np.bool)
 
 tf.compat.v1.disable_eager_execution()
 #---------------------------------
@@ -69,8 +70,6 @@ class DeepQ(AgentAbstract.AgentAbstract):
 
         self.episode = 0
 
-        optimizer = Adam(lr=self.learning_rate)
-
         # Custom loss function (Huber loss)
         # See https://medium.com/@gobiviswaml/huber-error-loss-functions-3f2ac015cd45
         def huber_loss(x, y):
@@ -79,7 +78,10 @@ class DeepQ(AgentAbstract.AgentAbstract):
             linear = error - quadratic
             return K.mean(0.5 * quadratic + linear, axis=-1)
 
-        self.policy.compile(optimizer=optimizer, loss=huber_loss)
+        self.policy.compile(
+            optimizer=Adam(lr=self.learning_rate),
+            loss=huber_loss
+        )
 
         if load is not None:
             pwd = os.getcwd()
@@ -115,58 +117,121 @@ class DeepQ(AgentAbstract.AgentAbstract):
         self.memory.append(experience)
         return self.memory
 
-    def sample_batch(self):
-        # TODO
-        batch_q, batch_state, batch_mask, states_next, rewards, done =\
-            map(lambda x: np.array(list(x)), zip(*random.sample(self.memory, 32)))
-        batch_state = np.transpose(batch_state, axes=[0, 2, 3, 1])
-        states_next = np.transpose(states_next, axes=[0, 2, 3, 1])
-        batch_mask = dense_to_one_hot(batch_mask, len(utils.ACTIONS))
-        q_next = self.target.predict(states_next)
-        batch_q = batch_q.reshape(32, 4)
-        batch_q[batch_mask] = np.array(rewards) + self.gamma * np.array(done) * np.max(q_next, axis=1)
-        return batch_q, batch_state, batch_mask
+    def create_mini_batch(self):
+        q_values, states, mask, next_states, rewards, done = map(
+            lambda x: np.array(list(x)),
+            zip(*random.sample(self.memory, MINI_BATCH_SIZE))
+        )
+
+        # Pre-process data structures before
+        # returning them to be trained on
+        q_values = q_values.reshape(MINI_BATCH_SIZE, 4)
+        states = np.transpose(states, axes=[0, 2, 3, 1])
+        next_states = np.transpose(next_states, axes=[0, 2, 3, 1])
+
+        # One hot encode labels
+        # See https://machinelearningmastery.com/why-one-hot-encode-data-in-machine-learning/
+        mask = dense_to_one_hot(mask)
+        q_next = self.target.predict(next_states)
+
+        # Update the q-values of the mini-batch
+        q_values[mask] = np.array(rewards) + \
+            self.gamma * np.array(done) * np.max(q_next, axis=1)
+        return q_values, states, mask
 
     def build_train_network(self):
-        # TODO
-        X = Input(shape=(*utils.IMG_SIZE, 4), dtype='float32')
+        x = Input(shape=(*utils.IMG_SIZE, 4), dtype='float32')
         mask = Input(shape=(len(utils.ACTIONS),), dtype='float32')
-        q_out, model = self.__build(X)
-        q_ = Lambda(lambda x: K.reshape(K.sum(x * mask, axis=1), (-1, 1)), output_shape=(1,))(q_out)
-        return K.function([X], [q_out]), Model([X, mask], q_)
+
+        q_out, model = self.__build(x)
+        q_ = Lambda(
+            lambda x: K.reshape(K.sum(x * mask, axis=1), (-1, 1)),
+            output_shape=(1,)
+        )(q_out)
+        return K.function([x], [q_out]), Model([X, mask], q_)
 
     def build_target_network(self):
-        X = Input(shape=(*utils.IMG_SIZE, 4), dtype='float32')
-        _, model = self.__build(X, trainable=False, init=initializers.zeros())
-        return model
+        x = Input(shape=(*utils.IMG_SIZE, 4), dtype='float32')
+        _, network = self.__build(
+            x, trainable=False,
+            init=initializers.zeros()
+        )
+        return network
 
-    def __build(self, X, trainable=True, init=initializers.TruncatedNormal(stddev=0.01)):
-        # TODO
-        init_w = init
-        init_b = initializers.constant(0.)
-        normed = Lambda(lambda x: x / 255., output_shape=K.int_shape(X)[1:])(X)
-        h_conv1 = Convolution2D(32, (8, 8), strides=(4, 4),
-                                kernel_initializer=init_w, use_bias=False, padding='same')(normed)
-        h_ln1 = LayerNormalization.LayerNormalization(activation=K.relu)(h_conv1)
-        h_conv2 = Convolution2D(64, (4, 4), strides=(2, 2),
-                                kernel_initializer=init_w, use_bias=False, padding='same')(h_ln1)
-        h_ln2 = LayerNormalization.LayerNormalization(activation=K.relu)(h_conv2)
-        h_conv3 = Convolution2D(64, (3, 3), strides=(1, 1),
-                                kernel_initializer=init_w, use_bias=False, padding='same')(h_ln2)
-        h_ln3 = LayerNormalization.LayerNormalization(activation=K.relu)(h_conv3)
-        h_flat = Flatten()(h_ln3)
-        fc1 = Dense(512, use_bias=False, kernel_initializer=init_w)(h_flat)
-        h_ln_fc1 = LayerNormalization.LayerNormalization(activation=K.relu)(fc1)
-        z = Dense(len(utils.ACTIONS), kernel_initializer=init_w, use_bias=False, bias_initializer=init_b)(h_ln_fc1)
-        model = Model(X, z)
+    def __build(
+        self, _input, trainable=True,
+        init=initializers.TruncatedNormal(stddev=0.01)
+    ):
+        # Kernel initializers and bias initialers
+        init_weights = init
+        init_biases = initializers.constant(0.)
+
+        # Neural net architecture inspired by...
+        # https://www.cs.toronto.edu/~vmnih/docs/dqn.pdf
+        # ... and...
+        # https://github.com/IntoxicatedDING/DQN-Beat-Atari/blob/master/dqn.py
+
+        # Normalize the input colors
+        # Keep them in [0, 1]
+        output = Lambda(
+            lambda x: x / 255., output_shape=K.int_shape(_input)[1:]
+        )(_input)
+        output = Convolution2D(
+            32, (8, 8), strides=(4, 4),
+            padding='same',
+            kernel_initializer=init_weights,
+            use_bias=False
+        )(output)
+        output = LayerNormalization.LayerNormalization(
+            activation=K.relu
+        )(output)
+        output = Convolution2D(
+            64, (4, 4), strides=(2, 2),
+            padding='same',
+            kernel_initializer=init_weights,
+            use_bias=False
+        )(output)
+        output = LayerNormalization.LayerNormalization(
+            activation=K.relu
+        )(output)
+        output = Convolution2D(
+            64, (3, 3), strides=(1, 1),
+            padding='same',
+            kernel_initializer=init_weights,
+            use_bias=False
+        )(output)
+        output = LayerNormalization.LayerNormalization(
+            activation=K.relu
+        )(output)
+        output = Flatten()(output)
+
+        output = Dense(
+            512, use_bias=False,
+            kernel_initializer=init_w
+        )(output)
+        output = LayerNormalization.LayerNormalization(
+            activation=K.relu
+        )(output)
+
+        output = Dense(
+            len(utils.ACTIONS),
+            kernel_initializer=init_weights,
+            use_bias=False,
+            bias_initializer=init_biases
+        )(output)
+
+        model = Model(_input, output)
         model.trainable = trainable
-        return z, model
+        return output, model
 
     def learn(self):
-        batch_q, batch_state, batch_mask = self.sample_batch()
+        # Obtain a mini-batch with size MINI_BATCH_SIZE
+        q, state, mask = self.create_mini_batch()
+
+        # Use that mini-batch to train the network
         self.policy.fit(
-            [batch_state, batch_mask],
-            np.sum(batch_mask * batch_q, axis=1),
+            [state, mask],
+            np.sum(batch_mask * q, axis=1),
             verbose=0
         )
 
@@ -183,15 +248,29 @@ class DeepQ(AgentAbstract.AgentAbstract):
         if not os.path.exists(path):
             os.mkdir(path)
 
-        # Save for later use or for a possible training restore
+        # Save for later use or for possible training restore
         self.policy.save_weights(os.path.join(path, 'policy.h5'))
         self.target.save_weights(os.path.join(path, 'target.h5'))
         np.save(os.path.join(path, 'params'), [self.episode, self.epsilon])
 
     def restore_training(self, path='saved_models'):
-        episode, _, eps, __ = np.load(os.path.join(
+        # Support two versions of models
+        # One version has four parameters and
+        # the other has two.
+        # In either case, only two parameters are required
+        unpack = np.load(os.path.join(
             os.getcwd(), f'{path}/params.npy'
         ))
+        n_parameters = len(unpack)
+
+        if n_parameters == 2:
+            # Second version
+            episode, eps = unpack
+        elif n_parameters == 4:
+            # First version
+            episode, _, eps, __ = unpack
+        else:
+            raise ValueError('Arguments unpacking error')
 
         self.episode = int(episode)
         self.epsilon = eps

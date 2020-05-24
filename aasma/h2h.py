@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #---------------------------------
-# AASMA Single Thread
-# File : run.py
+# AASMA
+# File : h2h.py
 #
 # @ start date          17 05 2020
 # @ last update         24 05 2020
