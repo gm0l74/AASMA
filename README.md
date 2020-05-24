@@ -37,7 +37,7 @@ The configuration of the environment can be altered in the file **config.json**.
 The environment can be seen below.
 
 <p align="center">
-  <img width="300" src="https://github.com/gm0l74/AASMA/blob/master/images/env.png">
+  <img width="200" src="https://github.com/gm0l74/AASMA/blob/master/images/env.png">
 </p>
 
 ## Single Agent
@@ -65,7 +65,7 @@ python aasma/grabber.py
 ```
 
 <p align="center">
-  <img width="100" src="https://github.com/gm0l74/AASMA/blob/master/images/s_agent.gif">
+  <img width="200" src="https://github.com/gm0l74/AASMA/blob/master/images/s_agent.gif">
 </p>
 
 To run the project with an already trained model do:
