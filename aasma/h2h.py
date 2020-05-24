@@ -4,7 +4,7 @@
 # File : run.py
 #
 # @ start date          17 05 2020
-# @ last update         23 05 2020
+# @ last update         24 05 2020
 #---------------------------------
 
 #---------------------------------
@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     import grabber
 
-    AGENTS = ('drl', 'random', 'reactive')
+    AGENTS = ('drl', 'random', 'reactive', 'm-drl')
 
     clock = pygame.time.Clock()
 
@@ -72,6 +72,19 @@ if __name__ == '__main__':
 
                 snapshot = utils.perceive(grabber.snapshot())
                 state = np.array([snapshot for _ in range(4)])
+            elif agent_id == 'm-drl':
+                agent = DeepQ.DeepQ(sys.argv[1])
+
+                state = []
+                _, characters = env.gods_view()
+                for character in characters:
+                    position = [character['x'], character['y']]
+                    alt_snap = utils.remove_character_from_image(
+                        snapshot, position
+                    )
+
+                    state.append(np.array([alt_snap for _ in range(4)]))
+
             elif agent_id == 'random':
                 agent = Randomness.Randomness()
             else:
@@ -94,16 +107,52 @@ if __name__ == '__main__':
                     state = np.concatenate((state[1:], snapshot), axis=0)
                     env.move_character(0, utils.ACTIONS[
                         agent.predict(
-                            np.expand_dims(np.transpose(state, [1, 2, 0]), axis=0)
+                            np.expand_dims(
+                                np.transpose(state, [1, 2, 0]),
+                                axis=0
+                            )
                         )[1]
                     ])
                 elif agent_id == 'random':
                     env.move_character(0, agent.make_action(None))
-                else:
+                elif agent_id == 'drl':
                     overview = env.gods_view()
                     env.move_character(0, agent.make_action(overview))
+                else:
+                    # M-DRL
+                    snapshot = utils.perceive(grabber.snapshot())
 
-                [r], env_penalty = env.update()
+                    _, characters = env.gods_view()
+                    characters = copy.deepcopy(characters)
+
+                    for i, character in enumerate(characters):
+                        position = [character['x'], character['y']]
+
+                        alt_snap = utils.remove_character_from_image(
+                            snapshot, position
+                        )
+                        alt_snap = alt_snap.reshape(1, *utils.IMG_SIZE)
+
+                        state[i] = np.concatenate(
+                            (state[i][1:], alt_snap),
+                            axis=0
+                        )
+
+                        env.move_character(1 if i == 0 else 0, utils.ACTIONS[
+                            agent.predict(
+                                np.expand_dims(
+                                    np.transpose(state[i], [1, 2, 0]), axis=0
+                                )
+                            )[1]
+                        ])
+
+                # Obtain feedback from the environment
+                if agent_id == 'm-drl':
+                    [r1, r2], env_penalty = env.update()
+                    r = (r1 + r2) / 2
+                else:
+                    [r], env_penalty = env.update()
+
                 if env_penalty <= -1:
                     RUN = False
                 score += r

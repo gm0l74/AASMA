@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 #---------------------------------
 # Environment Engine
 #---------------------------------
-FPS = 120
+FPS = 360
 
 #---------------------------------
 # Training Settings
@@ -135,8 +135,9 @@ if __name__ == '__main__':
             score += r + env_penalty
 
             # Get the result of making said action...
-            snapshot = utils.perceive(grabber.snapshot())
-            snapshot = snapshot.reshape(1, *utils.IMG_SIZE)
+            snapshot = utils.perceive(grabber.snapshot()).reshape(
+                1, *utils.IMG_SIZE
+            )
             # ... and update the state
             next_state = np.append(state[1:], snapshot, axis=0)
 

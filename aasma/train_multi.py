@@ -29,6 +29,7 @@ FPS = 360
 #---------------------------------
 UPDT_TARGET_NETWORK_FREQ = 40
 SAVE_FREQ = 100
+
 RESTART_EPSILON = 0.8
 
 #---------------------------------
@@ -142,7 +143,9 @@ if __name__ == '__main__':
             for i, character in enumerate(characters):
                 position = [character['x'], character['y']]
 
-                alt_snap = utils.remove_character_from_image(snapshot, position)
+                alt_snap = utils.remove_character_from_image(
+                    snapshot, position
+                )
                 alt_snap = alt_snap.reshape(1, *utils.IMG_SIZE)
 
                 state[i] = np.concatenate((state[i][1:], alt_snap), axis=0)
@@ -186,8 +189,9 @@ if __name__ == '__main__':
             for i, character in enumerate(characters):
                 position = [character['x'], character['y']]
 
-                alt_snap = utils.remove_character_from_image(snapshot, position)
-                alt_snap = alt_snap.reshape(1, *utils.IMG_SIZE)
+                alt_snap = utils.remove_character_from_image(
+                    snapshot, position
+                ).reshape(1, *utils.IMG_SIZE)
 
                 next_state.append(np.concatenate(
                     (state[i][1:], alt_snap), axis=0
