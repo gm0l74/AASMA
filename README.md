@@ -15,6 +15,10 @@ make reset
 
 All models were trained on a NVIDIA GTX 1070 and on a NVIDIA GTX 1060 6GB.
 
+**To run the code, we advise the installation of Anaconda.**
+https://www.anaconda.com/products/individual
+
+
 ## Environment
 
 The AASMA Environment is imported directly by whatever scripts need it.
@@ -41,8 +45,6 @@ The environment can be seen below.
 </p>
 
 ## Single Agent
-To run the code, we advise the installation of Anaconda.
-https://www.anaconda.com/products/individual
 
 The agent related files are responsible for controlling the brain of the drone.
 
