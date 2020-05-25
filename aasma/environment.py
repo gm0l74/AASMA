@@ -410,6 +410,7 @@ class Environment:
         # Reset characters
         self.__characters = []
         for character_id in range(len(self.__characters_reset)):
+            print("FUCK ", len(self.__characters_reset))
             x, y, hm_color = self.__find_insertion_zone()
 
             # Character data structure initialization
@@ -565,6 +566,11 @@ class Environment:
 
     def gods_view(self):
         return self.__env_mtrx, self.__characters
+
+    def del_character(self, id):
+        if len(self.__characters) == id + 1:
+            self.__characters = self.__characters[:id]
+            self.__characters_reset = self.__characters_reset[:id]
 
 #---------------------------------
 # Execute

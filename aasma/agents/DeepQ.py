@@ -16,7 +16,6 @@ from collections import deque
 
 import aasma.utils as utils
 import aasma.agents.AgentAbstract as AgentAbstract
-import aasma.agents.LayerNormalization as LayerNormalization
 
 import tensorflow as tf
 from tensorflow.keras import backend as K
@@ -27,6 +26,8 @@ from tensorflow.keras.layers import Convolution2D, Dense, Flatten
 
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import initializers
+
+tf.compat.v1.disable_eager_execution()
 
 #---------------------------------
 # Constants
@@ -48,7 +49,56 @@ def dense_to_one_hot(data):
     return (np.arange(len(utils.ACTIONS)) == \
         np.array(data)[:, None]).astype(np.bool)
 
-tf.compat.v1.disable_eager_execution()
+#---------------------------------
+# class LayerNormalization
+#---------------------------------
+# Inspired by
+# https://github.com/IntoxicatedDING/DQN-Beat-Atari/blob/master/dqn.py
+# and ported from tf1 to tensorflow.keras (tf2)
+class LayerNormalization(Layer):
+    def __init__(self, eps=1e-5, activation=None, **kwargs):
+        self.eps = eps
+        self.channels = None
+        self.activation = activation
+
+        super(LayerNormalization, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.channels = input_shape[-1]
+        shape = [1] * (len(input_shape) - 1)
+        shape.append(self.channels)
+        self.add_weight('gamma', shape, dtype='float32', initializer='ones')
+        self.add_weight('beta', shape, dtype='float32', initializer='zeros')
+
+        super(LayerNormalization, self).build(input_shape)
+
+    def call(self, inputs, **kwargs):
+        dim = len(K.int_shape(inputs)) - 1
+        mean = K.mean(inputs, axis=dim, keepdims=True)
+        var = K.mean(K.square(inputs - mean), axis=dim, keepdims=True)
+        outputs = (inputs - mean) / K.sqrt(var + self.eps)
+
+        try:
+            outputs = outputs * self.trainable_weights[0] + \
+                self.trainable_weights[1]
+        except:
+            pass
+
+        if self.activation is None:
+            return outputs
+        else:
+            return self.activation(outputs)
+
+    def get_config(self):
+        config = {
+            'eps': self.eps,
+            'channels': self.channels,
+            'activation': self.activation
+        }
+
+        base_config = super(LayerNormalization, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
 #---------------------------------
 # class DeepQ
 #---------------------------------
@@ -148,7 +198,7 @@ class DeepQ(AgentAbstract.AgentAbstract):
             lambda x: K.reshape(K.sum(x * mask, axis=1), (-1, 1)),
             output_shape=(1,)
         )(q_out)
-        return K.function([x], [q_out]), Model([X, mask], q_)
+        return K.function([x], [q_out]), Model([x, mask], q_)
 
     def build_target_network(self):
         x = Input(shape=(*utils.IMG_SIZE, 4), dtype='float32')
@@ -182,34 +232,28 @@ class DeepQ(AgentAbstract.AgentAbstract):
             kernel_initializer=init_weights,
             use_bias=False
         )(output)
-        output = LayerNormalization.LayerNormalization(
-            activation=K.relu
-        )(output)
+        output = LayerNormalization(activation=K.relu)(output)
         output = Convolution2D(
             64, (4, 4), strides=(2, 2),
             padding='same',
             kernel_initializer=init_weights,
             use_bias=False
         )(output)
-        output = LayerNormalization.LayerNormalization(
-            activation=K.relu
-        )(output)
+        output = LayerNormalization(activation=K.relu)(output)
         output = Convolution2D(
             64, (3, 3), strides=(1, 1),
             padding='same',
             kernel_initializer=init_weights,
             use_bias=False
         )(output)
-        output = LayerNormalization.LayerNormalization(
-            activation=K.relu
-        )(output)
+        output = LayerNormalization(activation=K.relu)(output)
         output = Flatten()(output)
 
         output = Dense(
             512, use_bias=False,
-            kernel_initializer=init_w
+            kernel_initializer=init_weights
         )(output)
-        output = LayerNormalization.LayerNormalization(
+        output = LayerNormalization(
             activation=K.relu
         )(output)
 
